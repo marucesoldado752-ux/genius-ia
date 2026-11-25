@@ -1,10 +1,18 @@
-/* =========================================
-   GENIUS IA
+/* =================================================
+   GENIUS IA V2.0
    LE FUTUR COMMENCE AVEC NOUS
-   Application principale
-========================================= */
+   Créateur : MARUCE SOLDADO 🇬🇳
+   MOTEUR IA : OPENROUTER
+   SERVEUR : VERCEL
+================================================= */
+
+"use strict";
 
 const APP_NAME = "GENIUS IA";
+
+const API_BASE_URL = "https://genius-ia-sand.vercel.app";
+
+const CHAT_ENDPOINT = `${API_BASE_URL}/api/chat`;
 
 const STORAGE_KEY = "genius_ia_conversations_v1";
 const ACTIVE_KEY = "genius_ia_active_v1";
@@ -26,9 +34,9 @@ let activeConversation = null;
 let isSending = false;
 
 
-/* =========================================
+/* =================================================
    INITIALISATION
-========================================= */
+================================================= */
 
 function initializeApp() {
 
@@ -36,11 +44,19 @@ function initializeApp() {
 
     const savedActive = localStorage.getItem(ACTIVE_KEY);
 
-    if (savedActive && conversations.some(c => c.id === savedActive)) {
+    if (
+        savedActive &&
+        conversations.some(c => c.id === savedActive)
+    ) {
+
         activeConversation = savedActive;
+
         renderConversation(savedActive);
+
     } else {
+
         showWelcome();
+
     }
 
     attachEvents();
@@ -48,9 +64,9 @@ function initializeApp() {
 }
 
 
-/* =========================================
+/* =================================================
    CHARGEMENT DES CONVERSATIONS
-========================================= */
+================================================= */
 
 function loadConversations() {
 
@@ -75,9 +91,9 @@ function loadConversations() {
 }
 
 
-/* =========================================
+/* =================================================
    SAUVEGARDE
-========================================= */
+================================================= */
 
 function saveConversations() {
 
@@ -89,25 +105,44 @@ function saveConversations() {
         );
 
         if (activeConversation) {
-            localStorage.setItem(ACTIVE_KEY, activeConversation);
+
+            localStorage.setItem(
+                ACTIVE_KEY,
+                activeConversation
+            );
+
         }
 
     } catch (error) {
 
         console.error("Erreur de sauvegarde :", error);
 
-        alert("Impossible de sauvegarder cette conversation.");
-
     }
 
 }
 
 
-/* =========================================
+/* =================================================
+   IDENTIFIANT UNIQUE
+================================================= */
+
+function generateID() {
+
+    return "genius_" +
+        Date.now() +
+        "_" +
+        Math.random().toString(36).substring(2, 9);
+
+}
+
+
+/* =================================================
    NOUVELLE CONVERSATION
-========================================= */
+================================================= */
 
 function createNewConversation() {
+
+    if (isSending) return;
 
     const conversation = {
 
@@ -140,23 +175,9 @@ function createNewConversation() {
 }
 
 
-/* =========================================
-   IDENTIFIANT UNIQUE
-========================================= */
-
-function generateID() {
-
-    return "genius_" +
-        Date.now() +
-        "_" +
-        Math.random().toString(36).substring(2, 9);
-
-}
-
-
-/* =========================================
+/* =================================================
    AFFICHAGE ACCUEIL
-========================================= */
+================================================= */
 
 function showWelcome() {
 
@@ -167,9 +188,9 @@ function showWelcome() {
 }
 
 
-/* =========================================
+/* =================================================
    AFFICHAGE DISCUSSION
-========================================= */
+================================================= */
 
 function showChat() {
 
@@ -180,17 +201,22 @@ function showChat() {
 }
 
 
-/* =========================================
+/* =================================================
    AFFICHER UNE CONVERSATION
-========================================= */
+================================================= */
 
 function renderConversation(id) {
 
-    const conversation = conversations.find(c => c.id === id);
+    const conversation = conversations.find(
+        c => c.id === id
+    );
 
     if (!conversation) {
+
         showWelcome();
+
         return;
+
     }
 
     activeConversation = id;
@@ -213,9 +239,9 @@ function renderConversation(id) {
 }
 
 
-/* =========================================
-   AFFICHER UN MESSAGE
-========================================= */
+/* =================================================
+   AFFICHAGE DES MESSAGES
+================================================= */
 
 function displayMessage(role, content) {
 
@@ -261,30 +287,163 @@ function displayMessage(role, content) {
 
     scrollToBottom();
 
+    return wrapper;
+
 }
 
 
-/* =========================================
+/* =================================================
+   INDICATEUR DE RÉFLEXION
+================================================= */
+
+function showThinking() {
+
+    const wrapper = document.createElement("div");
+
+    wrapper.className = "assistant-message";
+
+    wrapper.id = "genius-thinking";
+
+    const avatar = document.createElement("div");
+
+    avatar.className = "message-avatar";
+
+    avatar.textContent = "G";
+
+    const content = document.createElement("div");
+
+    content.className = "message-content";
+
+    const name = document.createElement("strong");
+
+    name.textContent = APP_NAME;
+
+    const paragraph = document.createElement("p");
+
+    paragraph.textContent = "GENIUS IA réfléchit...";
+
+    content.appendChild(name);
+
+    content.appendChild(paragraph);
+
+    wrapper.appendChild(avatar);
+
+    wrapper.appendChild(content);
+
+    messages.appendChild(wrapper);
+
+    scrollToBottom();
+
+}
+
+
+/* =================================================
+   SUPPRIMER INDICATEUR
+================================================= */
+
+function removeThinking() {
+
+    const thinking = document.getElementById(
+        "genius-thinking"
+    );
+
+    if (thinking) {
+        thinking.remove();
+    }
+
+}
+
+
+/* =================================================
    SCROLL AUTOMATIQUE
-========================================= */
+================================================= */
 
 function scrollToBottom() {
 
     setTimeout(() => {
 
-        window.scrollTo({
-            top: document.body.scrollHeight,
-            behavior: "smooth"
-        });
+        const lastMessage = messages.lastElementChild;
+
+        if (lastMessage) {
+
+            lastMessage.scrollIntoView({
+                behavior: "smooth",
+                block: "end"
+            });
+
+        }
 
     }, 100);
 
 }
 
 
-/* =========================================
+/* =================================================
+   COMMUNICATION AVEC LE SERVEUR
+================================================= */
+
+async function askGeniusAI(messageHistory) {
+
+    const response = await fetch(CHAT_ENDPOINT, {
+
+        method: "POST",
+
+        headers: {
+
+            "Content-Type": "application/json"
+
+        },
+
+        body: JSON.stringify({
+
+            messages: messageHistory
+
+        })
+
+    });
+
+    let data;
+
+    try {
+
+        data = await response.json();
+
+    } catch (error) {
+
+        throw new Error(
+            "Le serveur a envoyé une réponse invalide."
+        );
+
+    }
+
+    if (!response.ok || !data.success) {
+
+        throw new Error(
+            data.error ||
+            "Impossible de contacter GENIUS IA."
+        );
+
+    }
+
+    if (
+        typeof data.reply !== "string" ||
+        !data.reply.trim()
+    ) {
+
+        throw new Error(
+            "GENIUS IA n'a pas reçu de réponse valide."
+        );
+
+    }
+
+    return data.reply;
+
+}
+
+
+/* =================================================
    ENVOYER UN MESSAGE
-========================================= */
+================================================= */
 
 async function sendMessage() {
 
@@ -295,7 +454,25 @@ async function sendMessage() {
     if (!text) return;
 
     if (!activeConversation) {
-        createNewConversation();
+
+        const conversation = {
+
+            id: generateID(),
+
+            title: "Nouvelle conversation",
+
+            messages: [],
+
+            createdAt: new Date().toISOString(),
+
+            updatedAt: new Date().toISOString()
+
+        };
+
+        conversations.unshift(conversation);
+
+        activeConversation = conversation.id;
+
     }
 
     const conversation = conversations.find(
@@ -307,6 +484,8 @@ async function sendMessage() {
     isSending = true;
 
     sendButton.disabled = true;
+
+    userInput.disabled = true;
 
     userInput.value = "";
 
@@ -337,23 +516,32 @@ async function sendMessage() {
 
     saveConversations();
 
+    showThinking();
+
     try {
 
-        /*
-         * LE MOTEUR IA SERA CONNECTÉ
-         * À NOTRE BACKEND DANS LA PROCHAINE PHASE.
-         *
-         * Ne pas mettre de clé API ici.
-         */
+        // Garder uniquement les messages utiles
+        // Le serveur accepte maximum 30 messages.
 
-        await new Promise(resolve => setTimeout(resolve, 500));
+        const messageHistory = conversation.messages
+            .filter(message =>
+                ["user", "assistant"].includes(message.role)
+            )
+            .slice(-30)
+            .map(message => ({
 
-        const answer =
-            "Merci pour votre message ! Je suis GENIUS IA. " +
-            "Mon moteur d'intelligence artificielle est en cours " +
-            "d'installation. La prochaine étape consistera à " +
-            "connecter mon serveur IA sécurisé pour vous fournir " +
-            "de véritables réponses intelligentes.";
+                role: message.role,
+
+                content: message.content
+
+            }));
+
+
+        // CONNEXION AU VÉRITABLE MOTEUR IA
+
+        const answer = await askGeniusAI(messageHistory);
+
+        removeThinking();
 
         conversation.messages.push({
 
@@ -373,11 +561,15 @@ async function sendMessage() {
 
     } catch (error) {
 
-        console.error("Erreur :", error);
+        console.error("GENIUS IA ERROR:", error);
+
+        removeThinking();
 
         displayMessage(
             "assistant",
-            "Une erreur est survenue. Veuillez réessayer."
+            "Impossible de traiter votre demande pour le moment.\n\n" +
+            error.message +
+            "\n\nVeuillez réessayer."
         );
 
     } finally {
@@ -386,6 +578,8 @@ async function sendMessage() {
 
         sendButton.disabled = false;
 
+        userInput.disabled = false;
+
         userInput.focus();
 
     }
@@ -393,9 +587,9 @@ async function sendMessage() {
 }
 
 
-/* =========================================
+/* =================================================
    SUGGESTIONS
-========================================= */
+================================================= */
 
 function attachSuggestionEvents() {
 
@@ -409,6 +603,8 @@ function attachSuggestionEvents() {
 
             const prompt = button.dataset.prompt;
 
+            if (!prompt) return;
+
             userInput.value = prompt;
 
             sendMessage();
@@ -420,9 +616,9 @@ function attachSuggestionEvents() {
 }
 
 
-/* =========================================
+/* =================================================
    HISTORIQUE
-========================================= */
+================================================= */
 
 function showHistory() {
 
@@ -442,18 +638,36 @@ function showHistory() {
         })
         .join("\n");
 
-    alert(
+    const selection = prompt(
         "HISTORIQUE GENIUS IA\n\n" +
         history +
-        "\n\nLa navigation dans l'historique sera améliorée dans une prochaine version."
+        "\n\nEntrez le numéro de la conversation à ouvrir :"
     );
+
+    if (selection === null) return;
+
+    const index = Number(selection) - 1;
+
+    if (
+        !Number.isInteger(index) ||
+        index < 0 ||
+        index >= conversations.length
+    ) {
+
+        alert("Numéro de conversation invalide.");
+
+        return;
+
+    }
+
+    renderConversation(conversations[index].id);
 
 }
 
 
-/* =========================================
+/* =================================================
    MENU MOBILE
-========================================= */
+================================================= */
 
 function toggleSidebar() {
 
@@ -462,9 +676,9 @@ function toggleSidebar() {
 }
 
 
-/* =========================================
+/* =================================================
    ÉVÉNEMENTS
-========================================= */
+================================================= */
 
 function attachEvents() {
 
@@ -532,9 +746,9 @@ function attachEvents() {
 }
 
 
-/* =========================================
+/* =================================================
    DÉMARRAGE
-========================================= */
+================================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
 
