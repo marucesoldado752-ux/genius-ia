@@ -1,16 +1,18 @@
-/* =================================================
-   GENIUS IA V2.3
-   AUTHENTIFICATION + CHAT IA + HISTORIQUE SUPABASE
+/* =========================================================
+   GENIUS IA V2.4
+   AUTHENTIFICATION + CHAT IA + HISTORIQUE
+   PROFIL + PARAMÈTRES + ADMINISTRATION
    Créateur : MARUCE SOLDADO 🇬🇳
-================================================= */
+========================================================= */
 
 "use strict";
 
-/* =================================================
+/* =========================================================
    CONFIGURATION
-================================================= */
+========================================================= */
 
 const APP_NAME = "GENIUS IA";
+const APP_VERSION = "2.4.0";
 
 const API_BASE_URL = "https://genius-ia-sand.vercel.app";
 
@@ -18,8 +20,16 @@ const CHAT_ENDPOINT = `${API_BASE_URL}/api/chat`;
 const LOGIN_ENDPOINT = `${API_BASE_URL}/api/auth/login`;
 const REGISTER_ENDPOINT = `${API_BASE_URL}/api/auth/register`;
 const PROFILE_ENDPOINT = `${API_BASE_URL}/api/auth/me`;
+const UPDATE_PROFILE_ENDPOINT = `${API_BASE_URL}/api/profile`;
+const PASSWORD_ENDPOINT = `${API_BASE_URL}/api/auth/password`;
 
 const CONVERSATIONS_ENDPOINT = `${API_BASE_URL}/api/conversations`;
+
+const ADMIN_DASHBOARD_ENDPOINT =
+    `${API_BASE_URL}/api/admin/dashboard`;
+
+const ADMIN_USERS_ENDPOINT =
+    `${API_BASE_URL}/api/admin/users`;
 
 const TOKEN_KEY = "genius_ia_token";
 const USER_KEY = "genius_ia_user";
@@ -33,11 +43,13 @@ let activeConversation = null;
 
 let isSending = false;
 let eventsAttached = false;
+let currentPanel = null;
+let historySearchTimer = null;
 
 
-/* =================================================
+/* =========================================================
    ÉLÉMENTS HTML
-================================================= */
+========================================================= */
 
 const authScreen = document.getElementById("authScreen");
 const mainApp = document.getElementById("mainApp");
@@ -60,8 +72,8 @@ const sendButton = document.getElementById("sendButton");
 const newChatButton = document.getElementById("newChat");
 const mobileMenu = document.getElementById("mobileMenu");
 const sidebar = document.getElementById("sidebar");
-const historyButton = document.getElementById("historyButton");
 
+const historyButton = document.getElementById("historyButton");
 const logoutButton = document.getElementById("logoutButton");
 
 const userNameElement = document.getElementById("userName");
@@ -69,9 +81,211 @@ const userPhoneElement = document.getElementById("userPhone");
 const userAvatar = document.getElementById("userAvatar");
 
 
-/* =================================================
+/* =========================================================
+   STYLES DES NOUVEAUX PANNEAUX
+========================================================= */
+
+function injectGeniusStyles() {
+
+    if (document.getElementById("genius-v24-styles")) return;
+
+    const style = document.createElement("style");
+
+    style.id = "genius-v24-styles";
+
+    style.textContent = `
+
+        .genius-panel {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(3, 8, 18, .96);
+            backdrop-filter: blur(14px);
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .genius-panel-inner {
+            width: 100%;
+            max-width: 950px;
+            margin: 25px auto;
+            background: #0d1728;
+            border: 1px solid rgba(37,133,255,.25);
+            border-radius: 18px;
+            padding: 24px;
+            color: #fff;
+        }
+
+        .genius-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .genius-panel-header h2 {
+            margin: 0;
+            font-size: 23px;
+        }
+
+        .genius-close {
+            border: 0;
+            border-radius: 9px;
+            padding: 10px 15px;
+            background: #1b2b43;
+            color: white;
+            cursor: pointer;
+        }
+
+        .genius-input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 13px;
+            margin: 7px 0 15px;
+            background: #07111f;
+            color: white;
+            border: 1px solid #263c5c;
+            border-radius: 9px;
+            outline: none;
+        }
+
+        .genius-label {
+            display: block;
+            color: #aebed3;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
+        .genius-button {
+            border: 0;
+            border-radius: 9px;
+            padding: 11px 16px;
+            background: #2585ff;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            margin: 4px;
+        }
+
+        .genius-button.secondary {
+            background: #1b2b43;
+        }
+
+        .genius-button.danger {
+            background: #b92e45;
+        }
+
+        .genius-button:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .genius-card {
+            background: #101f34;
+            border: 1px solid #203955;
+            border-radius: 12px;
+            padding: 17px;
+            margin: 12px 0;
+        }
+
+        .genius-card h3 {
+            margin: 0 0 8px;
+            font-size: 16px;
+        }
+
+        .genius-card p {
+            color: #a9bad0;
+            font-size: 13px;
+            overflow-wrap: anywhere;
+        }
+
+        .genius-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 12px;
+        }
+
+        .genius-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .genius-stat {
+            background: #101f34;
+            border: 1px solid #203955;
+            padding: 17px;
+            border-radius: 12px;
+        }
+
+        .genius-stat strong {
+            display: block;
+            font-size: 25px;
+            color: #36a0ff;
+            margin-top: 8px;
+        }
+
+        .genius-empty {
+            padding: 35px 15px;
+            text-align: center;
+            color: #a9bad0;
+        }
+
+        .genius-status {
+            color: #36d995;
+            font-size: 12px;
+        }
+
+        .genius-status.off {
+            color: #ff6878;
+        }
+
+        .genius-panel-message {
+            color: #36d995;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+
+        .genius-panel-message.error {
+            color: #ff6878;
+        }
+
+        .genius-panel-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        @media(max-width:650px) {
+
+            .genius-panel {
+                padding: 10px;
+            }
+
+            .genius-panel-inner {
+                margin: 5px auto;
+                padding: 16px;
+            }
+
+            .genius-stat-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+        }
+
+    `;
+
+    document.head.appendChild(style);
+
+}
+
+
+/* =========================================================
    OUTILS GÉNÉRAUX
-================================================= */
+========================================================= */
 
 function getToken() {
     return localStorage.getItem(TOKEN_KEY);
@@ -88,7 +302,6 @@ function showAuthMessage(message, type = "error") {
     if (!authMessage) return;
 
     authMessage.textContent = message;
-
     authMessage.className = `auth-message ${type}`;
 
 }
@@ -159,9 +372,53 @@ function normalizeConversation(conversation) {
 }
 
 
-/* =================================================
+function escapeHTML(value) {
+
+    return String(value ?? "").replace(/[&<>"']/g, character => {
+
+        const entities = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;"
+        };
+
+        return entities[character];
+
+    });
+
+}
+
+
+function formatDate(value) {
+
+    if (!value) return "";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "";
+
+    return date.toLocaleString("fr-FR", {
+
+        dateStyle: "medium",
+        timeStyle: "short"
+
+    });
+
+}
+
+
+function closeSidebar() {
+
+    sidebar?.classList.remove("open");
+
+}
+
+
+/* =========================================================
    REQUÊTES API
-================================================= */
+========================================================= */
 
 async function apiRequest(url, options = {}) {
 
@@ -186,8 +443,11 @@ async function apiRequest(url, options = {}) {
     try {
 
         response = await fetch(url, {
+
             ...options,
+
             headers
+
         });
 
     } catch (error) {
@@ -210,10 +470,10 @@ async function apiRequest(url, options = {}) {
 
     }
 
-    if (!response.ok || !data.success) {
+    if (!response.ok || data.success === false) {
 
         throw new Error(
-            data.error || "Une erreur est survenue."
+            data.error || data.message || "Une erreur est survenue."
         );
 
     }
@@ -223,9 +483,86 @@ async function apiRequest(url, options = {}) {
 }
 
 
-/* =================================================
-   AFFICHAGE CONNEXION / INSCRIPTION
-================================================= */
+/* =========================================================
+   PANNEAUX
+========================================================= */
+
+function closePanel() {
+
+    document.getElementById("geniusDynamicPanel")?.remove();
+
+    currentPanel = null;
+
+}
+
+
+function openPanel(title, content) {
+
+    closePanel();
+
+    injectGeniusStyles();
+
+    const panel = document.createElement("div");
+
+    panel.id = "geniusDynamicPanel";
+    panel.className = "genius-panel";
+
+    panel.innerHTML = `
+
+        <div class="genius-panel-inner">
+
+            <div class="genius-panel-header">
+
+                <h2>${escapeHTML(title)}</h2>
+
+                <button class="genius-close" id="geniusClosePanel">
+                    ✕ Fermer
+                </button>
+
+            </div>
+
+            <div id="geniusPanelContent">
+                ${content}
+            </div>
+
+        </div>
+
+    `;
+
+    document.body.appendChild(panel);
+
+    currentPanel = panel;
+
+    panel.querySelector("#geniusClosePanel")
+        ?.addEventListener("click", closePanel);
+
+    panel.addEventListener("click", event => {
+
+        if (event.target === panel) closePanel();
+
+    });
+
+    return panel.querySelector("#geniusPanelContent");
+
+}
+
+
+function showPanelMessage(element, message, error = false) {
+
+    if (!element) return;
+
+    element.textContent = message;
+
+    element.className = error
+        ? "genius-panel-message error"
+        : "genius-panel-message";
+
+}
+
+
+/* =========================================================
+   AUTHENTIFICATION
+========================================================= */
 
 function showLoginForm() {
 
@@ -258,13 +595,12 @@ function showRegisterForm() {
 
 
 loginTab?.addEventListener("click", showLoginForm);
-
 registerTab?.addEventListener("click", showRegisterForm);
 
 
-/* =================================================
+/* =========================================================
    INSCRIPTION
-================================================= */
+========================================================= */
 
 registerForm?.addEventListener("submit", async event => {
 
@@ -310,10 +646,7 @@ registerForm?.addEventListener("submit", async event => {
 
     setButtonLoading(button, true, "Créer mon compte");
 
-    showAuthMessage(
-        "Création de votre compte...",
-        "loading"
-    );
+    showAuthMessage("Création de votre compte...", "loading");
 
     try {
 
@@ -334,9 +667,7 @@ registerForm?.addEventListener("submit", async event => {
 
         if (!data.token || !data.user) {
 
-            throw new Error(
-                "Réponse d'inscription incomplète."
-            );
+            throw new Error("Réponse d'inscription incomplète.");
 
         }
 
@@ -351,7 +682,7 @@ registerForm?.addEventListener("submit", async event => {
 
         registerForm.reset();
 
-        enterApplication();
+        await enterApplication();
 
     } catch (error) {
 
@@ -368,9 +699,9 @@ registerForm?.addEventListener("submit", async event => {
 });
 
 
-/* =================================================
+/* =========================================================
    CONNEXION
-================================================= */
+========================================================= */
 
 loginForm?.addEventListener("submit", async event => {
 
@@ -400,10 +731,7 @@ loginForm?.addEventListener("submit", async event => {
 
     setButtonLoading(button, true, "Se connecter");
 
-    showAuthMessage(
-        "Connexion en cours...",
-        "loading"
-    );
+    showAuthMessage("Connexion en cours...", "loading");
 
     try {
 
@@ -422,9 +750,7 @@ loginForm?.addEventListener("submit", async event => {
 
         if (!data.token || !data.user) {
 
-            throw new Error(
-                "Réponse de connexion incomplète."
-            );
+            throw new Error("Réponse de connexion incomplète.");
 
         }
 
@@ -439,7 +765,7 @@ loginForm?.addEventListener("submit", async event => {
 
         loginForm.reset();
 
-        enterApplication();
+        await enterApplication();
 
     } catch (error) {
 
@@ -456,9 +782,9 @@ loginForm?.addEventListener("submit", async event => {
 });
 
 
-/* =================================================
-   VÉRIFICATION DE SESSION
-================================================= */
+/* =========================================================
+   SESSION
+========================================================= */
 
 async function verifySession() {
 
@@ -491,10 +817,7 @@ async function verifySession() {
 
     } catch (error) {
 
-        console.warn(
-            "SESSION EXPIRÉE:",
-            error.message
-        );
+        console.warn("SESSION EXPIRÉE:", error.message);
 
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
@@ -510,24 +833,22 @@ async function verifySession() {
 }
 
 
-/* =================================================
-   AFFICHAGE AUTHENTIFICATION
-================================================= */
-
 function showAuthentication() {
 
     if (authScreen) authScreen.hidden = false;
 
     if (mainApp) mainApp.hidden = true;
 
+    closePanel();
+
     showLoginForm();
 
 }
 
 
-/* =================================================
+/* =========================================================
    OUVERTURE APPLICATION
-================================================= */
+========================================================= */
 
 async function enterApplication() {
 
@@ -543,9 +864,9 @@ async function enterApplication() {
 
     if (mainApp) mainApp.hidden = false;
 
-    updateUserProfile();
-
     STORAGE_KEY = getUserStorageKey(currentUser.id);
+
+    updateUserProfile();
 
     attachEvents();
 
@@ -554,9 +875,9 @@ async function enterApplication() {
 }
 
 
-/* =================================================
+/* =========================================================
    PROFIL UTILISATEUR
-================================================= */
+========================================================= */
 
 function updateUserProfile() {
 
@@ -581,23 +902,20 @@ function updateUserProfile() {
 
     if (userAvatar) {
 
-        userAvatar.textContent =
-            name.charAt(0).toUpperCase();
+        userAvatar.textContent = name.charAt(0).toUpperCase();
 
     }
 
 }
 
 
-/* =================================================
+/* =========================================================
    DÉCONNEXION
-================================================= */
+========================================================= */
 
 logoutButton?.addEventListener("click", () => {
 
-    if (
-        !confirm("Voulez-vous vraiment vous déconnecter ?")
-    ) {
+    if (!confirm("Voulez-vous vraiment vous déconnecter ?")) {
 
         return;
 
@@ -613,14 +931,16 @@ logoutButton?.addEventListener("click", () => {
 
     STORAGE_KEY = null;
 
+    closePanel();
+
     showAuthentication();
 
 });
 
 
-/* =================================================
+/* =========================================================
    INITIALISATION CHAT
-================================================= */
+========================================================= */
 
 async function initializeChat() {
 
@@ -634,10 +954,7 @@ async function initializeChat() {
 
     } catch (error) {
 
-        console.error(
-            "CHARGEMENT HISTORIQUE:",
-            error
-        );
+        console.error("CHARGEMENT HISTORIQUE:", error);
 
     }
 
@@ -645,10 +962,7 @@ async function initializeChat() {
         `${ACTIVE_KEY}_${currentUser.id}`
     );
 
-    if (
-        savedActive &&
-        conversations.some(c => c.id === savedActive)
-    ) {
+    if (savedActive && conversations.some(c => c.id === savedActive)) {
 
         await openConversation(savedActive);
 
@@ -660,12 +974,14 @@ async function initializeChat() {
 
     }
 
+    updateAdminNavigation();
+
 }
 
 
-/* =================================================
+/* =========================================================
    CHARGEMENT LOCAL
-================================================= */
+========================================================= */
 
 function loadLocalConversations() {
 
@@ -673,9 +989,7 @@ function loadLocalConversations() {
 
         const saved = localStorage.getItem(STORAGE_KEY);
 
-        const local = saved
-            ? JSON.parse(saved)
-            : [];
+        const local = saved ? JSON.parse(saved) : [];
 
         conversations = Array.isArray(local)
             ? local.map(normalizeConversation)
@@ -683,10 +997,7 @@ function loadLocalConversations() {
 
     } catch (error) {
 
-        console.error(
-            "ERREUR HISTORIQUE LOCAL:",
-            error
-        );
+        console.error("ERREUR HISTORIQUE LOCAL:", error);
 
         conversations = [];
 
@@ -695,18 +1006,25 @@ function loadLocalConversations() {
 }
 
 
-/* =================================================
+/* =========================================================
    CHARGEMENT SUPABASE
-================================================= */
+========================================================= */
 
-async function loadRemoteConversations() {
+async function loadRemoteConversations(search = "") {
 
-    const data = await apiRequest(
-        CONVERSATIONS_ENDPOINT,
-        {
-            method: "GET"
-        }
-    );
+    const url = new URL(CONVERSATIONS_ENDPOINT);
+
+    if (search.trim()) {
+
+        url.searchParams.set("q", search.trim());
+
+    }
+
+    const data = await apiRequest(url.toString(), {
+
+        method: "GET"
+
+    });
 
     const remoteList = Array.isArray(data.conversations)
         ? data.conversations
@@ -715,9 +1033,13 @@ async function loadRemoteConversations() {
     const remoteConversations = remoteList.map(item => {
 
         return normalizeConversation({
+
             ...item,
+
             messages: [],
+
             isLocal: false
+
         });
 
     });
@@ -748,12 +1070,14 @@ async function loadRemoteConversations() {
 
     saveConversations();
 
+    return remoteConversations;
+
 }
 
 
-/* =================================================
+/* =========================================================
    SAUVEGARDE LOCALE
-================================================= */
+========================================================= */
 
 function saveConversations() {
 
@@ -773,40 +1097,40 @@ function saveConversations() {
                 activeConversation
             );
 
+        } else if (currentUser) {
+
+            localStorage.removeItem(
+                `${ACTIVE_KEY}_${currentUser.id}`
+            );
+
         }
 
     } catch (error) {
 
-        console.error(
-            "ERREUR SAUVEGARDE:",
-            error
-        );
+        console.error("ERREUR SAUVEGARDE:", error);
 
     }
 
 }
 
 
-/* =================================================
+/* =========================================================
    CRÉATION CONVERSATION SERVEUR
-================================================= */
+========================================================= */
 
 async function createRemoteConversation(title) {
 
-    const data = await apiRequest(
-        CONVERSATIONS_ENDPOINT,
-        {
+    const data = await apiRequest(CONVERSATIONS_ENDPOINT, {
 
-            method: "POST",
+        method: "POST",
 
-            body: JSON.stringify({
+        body: JSON.stringify({
 
-                title: title || "Nouvelle conversation"
+            title: title || "Nouvelle conversation"
 
-            })
+        })
 
-        }
-    );
+    });
 
     const conversation = data.conversation || data;
 
@@ -831,19 +1155,17 @@ async function createRemoteConversation(title) {
 }
 
 
-/* =================================================
+/* =========================================================
    NOUVELLE CONVERSATION
-================================================= */
+========================================================= */
 
 async function createNewConversation() {
 
     if (isSending || !currentUser) return;
 
-    if (newChatButton) {
+    closePanel();
 
-        newChatButton.disabled = true;
-
-    }
+    if (newChatButton) newChatButton.disabled = true;
 
     try {
 
@@ -857,69 +1179,38 @@ async function createNewConversation() {
 
         saveConversations();
 
-        messages.innerHTML = "";
+        if (messages) messages.innerHTML = "";
 
         showChat();
 
         if (userInput) {
 
             userInput.value = "";
-
             userInput.focus();
 
         }
 
     } catch (error) {
 
-        console.error(
-            "NOUVELLE CONVERSATION:",
-            error
+        console.error("NOUVELLE CONVERSATION:", error);
+
+        alert(
+            "Impossible de créer une conversation sur le serveur : " +
+            error.message
         );
-
-        const conversation = {
-
-            id: generateID(),
-
-            title: "Nouvelle conversation",
-
-            messages: [],
-
-            createdAt: new Date().toISOString(),
-
-            updatedAt: new Date().toISOString(),
-
-            isLocal: true
-
-        };
-
-        conversations.unshift(conversation);
-
-        activeConversation = conversation.id;
-
-        saveConversations();
-
-        messages.innerHTML = "";
-
-        showChat();
-
-        if (userInput) userInput.focus();
 
     } finally {
 
-        if (newChatButton) {
-
-            newChatButton.disabled = false;
-
-        }
+        if (newChatButton) newChatButton.disabled = false;
 
     }
 
 }
 
 
-/* =================================================
-   ACCUEIL
-================================================= */
+/* =========================================================
+   ACCUEIL ET CHAT
+========================================================= */
 
 function showWelcome() {
 
@@ -930,10 +1221,6 @@ function showWelcome() {
 }
 
 
-/* =================================================
-   AFFICHAGE CHAT
-================================================= */
-
 function showChat() {
 
     if (welcome) welcome.style.display = "none";
@@ -943,19 +1230,22 @@ function showChat() {
 }
 
 
-/* =================================================
-   CHARGEMENT DES MESSAGES D'UNE CONVERSATION
-================================================= */
+/* =========================================================
+   CHARGEMENT MESSAGES
+========================================================= */
 
 async function loadConversationMessages(id) {
 
     const data = await apiRequest(
+
         `${CONVERSATIONS_ENDPOINT}/${encodeURIComponent(id)}/messages`,
+
         {
 
             method: "GET"
 
         }
+
     );
 
     return Array.isArray(data.messages)
@@ -965,15 +1255,13 @@ async function loadConversationMessages(id) {
 }
 
 
-/* =================================================
+/* =========================================================
    OUVERTURE CONVERSATION
-================================================= */
+========================================================= */
 
 async function openConversation(id) {
 
-    const conversation = conversations.find(
-        c => c.id === id
-    );
+    const conversation = conversations.find(c => c.id === id);
 
     if (!conversation) {
 
@@ -983,11 +1271,15 @@ async function openConversation(id) {
 
     }
 
+    closePanel();
+
     activeConversation = id;
 
-    messages.innerHTML = "";
+    if (messages) messages.innerHTML = "";
 
     showChat();
+
+    closeSidebar();
 
     try {
 
@@ -1014,15 +1306,13 @@ async function openConversation(id) {
 
     } catch (error) {
 
-        console.error(
-            "CHARGEMENT DES MESSAGES:",
-            error
-        );
+        console.error("CHARGEMENT DES MESSAGES:", error);
 
         renderConversation(id);
 
         alert(
-            "Impossible de récupérer les messages sur le serveur."
+            "Impossible de récupérer les messages : " +
+            error.message
         );
 
     }
@@ -1030,15 +1320,13 @@ async function openConversation(id) {
 }
 
 
-/* =================================================
+/* =========================================================
    AFFICHAGE CONVERSATION
-================================================= */
+========================================================= */
 
 function renderConversation(id) {
 
-    const conversation = conversations.find(
-        c => c.id === id
-    );
+    const conversation = conversations.find(c => c.id === id);
 
     if (!conversation) {
 
@@ -1052,7 +1340,7 @@ function renderConversation(id) {
 
     activeConversation = id;
 
-    messages.innerHTML = "";
+    if (messages) messages.innerHTML = "";
 
     showChat();
 
@@ -1063,10 +1351,7 @@ function renderConversation(id) {
             message.role === "assistant"
         ) {
 
-            displayMessage(
-                message.role,
-                message.content
-            );
+            displayMessage(message.role, message.content);
 
         }
 
@@ -1077,11 +1362,13 @@ function renderConversation(id) {
 }
 
 
-/* =================================================
+/* =========================================================
    AFFICHAGE MESSAGE
-================================================= */
+========================================================= */
 
 function displayMessage(role, content) {
+
+    if (!messages) return null;
 
     const wrapper = document.createElement("div");
 
@@ -1097,8 +1384,7 @@ function displayMessage(role, content) {
             ? "message-avatar user-avatar"
             : "message-avatar";
 
-    avatar.textContent =
-        role === "user" ? "U" : "G";
+    avatar.textContent = role === "user" ? "U" : "G";
 
     const messageContent = document.createElement("div");
 
@@ -1106,21 +1392,18 @@ function displayMessage(role, content) {
 
     const name = document.createElement("strong");
 
-    name.textContent =
-        role === "user" ? "VOUS" : APP_NAME;
+    name.textContent = role === "user" ? "VOUS" : APP_NAME;
 
     const paragraph = document.createElement("p");
 
     paragraph.style.whiteSpace = "pre-wrap";
 
-    paragraph.textContent = content;
+    paragraph.textContent = String(content ?? "");
 
     messageContent.appendChild(name);
-
     messageContent.appendChild(paragraph);
 
     wrapper.appendChild(avatar);
-
     wrapper.appendChild(messageContent);
 
     messages.appendChild(wrapper);
@@ -1132,22 +1415,22 @@ function displayMessage(role, content) {
 }
 
 
-/* =================================================
+/* =========================================================
    INDICATEUR DE RÉFLEXION
-================================================= */
+========================================================= */
 
 function showThinking() {
+
+    if (!messages) return;
 
     const wrapper = document.createElement("div");
 
     wrapper.className = "assistant-message";
-
     wrapper.id = "genius-thinking";
 
     const avatar = document.createElement("div");
 
     avatar.className = "message-avatar";
-
     avatar.textContent = "G";
 
     const content = document.createElement("div");
@@ -1163,11 +1446,9 @@ function showThinking() {
     paragraph.textContent = "GENIUS IA réfléchit...";
 
     content.appendChild(name);
-
     content.appendChild(paragraph);
 
     wrapper.appendChild(avatar);
-
     wrapper.appendChild(content);
 
     messages.appendChild(wrapper);
@@ -1177,24 +1458,16 @@ function showThinking() {
 }
 
 
-/* =================================================
-   SUPPRESSION INDICATEUR
-================================================= */
-
 function removeThinking() {
 
-    const thinking = document.getElementById(
-        "genius-thinking"
-    );
-
-    if (thinking) thinking.remove();
+    document.getElementById("genius-thinking")?.remove();
 
 }
 
 
-/* =================================================
+/* =========================================================
    SCROLL
-================================================= */
+========================================================= */
 
 function scrollToBottom() {
 
@@ -1204,26 +1477,22 @@ function scrollToBottom() {
 
         const lastMessage = messages.lastElementChild;
 
-        if (lastMessage) {
+        lastMessage?.scrollIntoView({
 
-            lastMessage.scrollIntoView({
+            behavior: "smooth",
 
-                behavior: "smooth",
+            block: "end"
 
-                block: "end"
-
-            });
-
-        }
+        });
 
     }, 100);
 
 }
 
 
-/* =================================================
-   APPEL MOTEUR IA
-================================================= */
+/* =========================================================
+   MOTEUR IA
+========================================================= */
 
 async function askGeniusAI(messageHistory, conversationId) {
 
@@ -1242,16 +1511,13 @@ async function askGeniusAI(messageHistory, conversationId) {
 
     }
 
-    const data = await apiRequest(
-        CHAT_ENDPOINT,
-        {
+    const data = await apiRequest(CHAT_ENDPOINT, {
 
-            method: "POST",
+        method: "POST",
 
-            body: JSON.stringify(body)
+        body: JSON.stringify(body)
 
-        }
-    );
+    });
 
     if (
         typeof data.reply !== "string" ||
@@ -1273,9 +1539,9 @@ async function askGeniusAI(messageHistory, conversationId) {
 }
 
 
-/* =================================================
+/* =========================================================
    ENVOI MESSAGE
-================================================= */
+========================================================= */
 
 async function sendMessage() {
 
@@ -1291,25 +1557,28 @@ async function sendMessage() {
 
     if (!conversation) {
 
-        conversation = {
+        try {
 
-            id: generateID(),
+            conversation = await createRemoteConversation(
+                "Nouvelle conversation"
+            );
 
-            title: "Nouvelle conversation",
+            conversations.unshift(conversation);
 
-            messages: [],
+            activeConversation = conversation.id;
 
-            createdAt: new Date().toISOString(),
+        } catch (error) {
 
-            updatedAt: new Date().toISOString(),
+            console.error("CRÉATION CONVERSATION:", error);
 
-            isLocal: true
+            alert(
+                "Impossible de démarrer une conversation : " +
+                error.message
+            );
 
-        };
+            return;
 
-        conversations.unshift(conversation);
-
-        activeConversation = conversation.id;
+        }
 
     }
 
@@ -1353,9 +1622,7 @@ async function sendMessage() {
 
             .filter(message => {
 
-                return ["user", "assistant"].includes(
-                    message.role
-                );
+                return ["user", "assistant"].includes(message.role);
 
             })
 
@@ -1375,12 +1642,6 @@ async function sendMessage() {
         );
 
         removeThinking();
-
-        /*
-         * Le serveur peut créer automatiquement
-         * une conversation si aucun identifiant
-         * n'a été transmis.
-         */
 
         if (result.conversation_id) {
 
@@ -1422,10 +1683,7 @@ async function sendMessage() {
 
     } catch (error) {
 
-        console.error(
-            "GENIUS IA ERROR:",
-            error
-        );
+        console.error("GENIUS IA ERROR:", error);
 
         removeThinking();
 
@@ -1453,21 +1711,247 @@ async function sendMessage() {
 }
 
 
-/* =================================================
-   SUPPRESSION CONVERSATION
-================================================= */
+/* =========================================================
+   HISTORIQUE : AFFICHAGE
+========================================================= */
 
-async function deleteConversation(id) {
+async function showHistory() {
 
-    const conversation = conversations.find(
-        c => c.id === id
-    );
+    closeSidebar();
+
+    const content = openPanel("Historique des conversations", `
+
+        <input
+            type="search"
+            id="geniusHistorySearch"
+            class="genius-input"
+            placeholder="Rechercher une conversation..."
+        >
+
+        <div id="geniusHistoryList">
+            <div class="genius-empty">Chargement de l'historique...</div>
+        </div>
+
+    `);
+
+    const searchInput = content.querySelector("#geniusHistorySearch");
+
+    searchInput.addEventListener("input", () => {
+
+        clearTimeout(historySearchTimer);
+
+        historySearchTimer = setTimeout(() => {
+
+            renderHistoryList(searchInput.value);
+
+        }, 300);
+
+    });
+
+    await renderHistoryList("");
+
+}
+
+
+async function renderHistoryList(search = "") {
+
+    const list = document.getElementById("geniusHistoryList");
+
+    if (!list) return;
+
+    try {
+
+        if (!search.trim()) {
+
+            await loadRemoteConversations();
+
+        } else {
+
+            const url = new URL(CONVERSATIONS_ENDPOINT);
+
+            url.searchParams.set("q", search.trim());
+
+            const data = await apiRequest(url.toString(), {
+
+                method: "GET"
+
+            });
+
+            const remote = (data.conversations || []).map(item => {
+
+                return normalizeConversation({
+
+                    ...item,
+
+                    messages: [],
+
+                    isLocal: false
+
+                });
+
+            });
+
+            const localMatches = conversations.filter(c => {
+
+                return c.isLocal &&
+                    c.title.toLowerCase().includes(search.toLowerCase());
+
+            });
+
+            conversations = [...remote, ...localMatches];
+
+        }
+
+        list = document.getElementById("geniusHistoryList");
+
+        if (!list) return;
+
+        if (conversations.length === 0) {
+
+            list.innerHTML = `
+                <div class="genius-empty">
+                    Aucune conversation trouvée.
+                </div>
+            `;
+
+            return;
+
+        }
+
+        list.innerHTML = conversations.map(conversation => `
+
+            <div class="genius-card">
+
+                <h3>${escapeHTML(conversation.title)}</h3>
+
+                <p>
+                    ${escapeHTML(formatDate(conversation.updatedAt))}
+                </p>
+
+                <div class="genius-actions">
+
+                    <button
+                        class="genius-button"
+                        data-action="open"
+                        data-id="${escapeHTML(conversation.id)}"
+                    >
+                        Ouvrir
+                    </button>
+
+                    <button
+                        class="genius-button secondary"
+                        data-action="rename"
+                        data-id="${escapeHTML(conversation.id)}"
+                    >
+                        Renommer
+                    </button>
+
+                    <button
+                        class="genius-button secondary"
+                        data-action="export"
+                        data-id="${escapeHTML(conversation.id)}"
+                    >
+                        Exporter
+                    </button>
+
+                    <button
+                        class="genius-button danger"
+                        data-action="delete"
+                        data-id="${escapeHTML(conversation.id)}"
+                    >
+                        Supprimer
+                    </button>
+
+                </div>
+
+            </div>
+
+        `).join("");
+
+        list.querySelectorAll("[data-action]").forEach(button => {
+
+            button.addEventListener("click", async () => {
+
+                const id = button.dataset.id;
+                const action = button.dataset.action;
+
+                if (action === "open") {
+
+                    await openConversation(id);
+
+                }
+
+                if (action === "rename") {
+
+                    await renameConversation(id);
+
+                }
+
+                if (action === "export") {
+
+                    await exportConversation(id);
+
+                }
+
+                if (action === "delete") {
+
+                    await deleteConversation(id);
+
+                    if (document.getElementById("geniusDynamicPanel")) {
+
+                        await renderHistoryList(search);
+
+                    }
+
+                }
+
+            });
+
+        });
+
+    } catch (error) {
+
+        console.error("HISTORIQUE:", error);
+
+        if (list) {
+
+            list.innerHTML = `
+                <div class="genius-empty">
+                    Impossible de charger l'historique.
+                    <br><br>
+                    ${escapeHTML(error.message)}
+                </div>
+            `;
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   RENOMMER CONVERSATION
+========================================================= */
+
+async function renameConversation(id) {
+
+    const conversation = conversations.find(c => c.id === id);
 
     if (!conversation) return;
 
-    if (
-        !confirm("Voulez-vous supprimer cette conversation ?")
-    ) {
+    const title = prompt(
+        "Nouveau titre de la conversation :",
+        conversation.title
+    );
+
+    if (title === null) return;
+
+    const cleanTitle = title.trim();
+
+    if (!cleanTitle) {
+
+        alert("Le titre ne peut pas être vide.");
 
         return;
 
@@ -1478,25 +1962,85 @@ async function deleteConversation(id) {
         if (!conversation.isLocal) {
 
             await apiRequest(
+
                 `${CONVERSATIONS_ENDPOINT}/${encodeURIComponent(id)}`,
+
+                {
+
+                    method: "PUT",
+
+                    body: JSON.stringify({
+
+                        title: cleanTitle
+
+                    })
+
+                }
+
+            );
+
+        }
+
+        conversation.title = cleanTitle;
+
+        conversation.updatedAt = new Date().toISOString();
+
+        saveConversations();
+
+        await renderHistoryList(
+            document.getElementById("geniusHistorySearch")?.value || ""
+        );
+
+    } catch (error) {
+
+        alert("Impossible de renommer : " + error.message);
+
+    }
+
+}
+
+
+/* =========================================================
+   SUPPRESSION CONVERSATION
+========================================================= */
+
+async function deleteConversation(id) {
+
+    const conversation = conversations.find(c => c.id === id);
+
+    if (!conversation) return;
+
+    if (!confirm("Voulez-vous supprimer cette conversation ?")) {
+
+        return;
+
+    }
+
+    try {
+
+        if (!conversation.isLocal) {
+
+            await apiRequest(
+
+                `${CONVERSATIONS_ENDPOINT}/${encodeURIComponent(id)}`,
+
                 {
 
                     method: "DELETE"
 
                 }
+
             );
 
         }
 
-        conversations = conversations.filter(
-            c => c.id !== id
-        );
+        conversations = conversations.filter(c => c.id !== id);
 
         if (activeConversation === id) {
 
             activeConversation = null;
 
-            messages.innerHTML = "";
+            if (messages) messages.innerHTML = "";
 
             showWelcome();
 
@@ -1506,10 +2050,7 @@ async function deleteConversation(id) {
 
     } catch (error) {
 
-        console.error(
-            "SUPPRESSION CONVERSATION:",
-            error
-        );
+        console.error("SUPPRESSION CONVERSATION:", error);
 
         alert(
             "Impossible de supprimer cette conversation : " +
@@ -1521,9 +2062,779 @@ async function deleteConversation(id) {
 }
 
 
-/* =================================================
+/* =========================================================
+   EXPORT CONVERSATION
+========================================================= */
+
+async function exportConversation(id) {
+
+    try {
+
+        const data = await apiRequest(
+
+            `${CONVERSATIONS_ENDPOINT}/${encodeURIComponent(id)}/export`,
+
+            {
+
+                method: "GET"
+
+            }
+
+        );
+
+        const json = JSON.stringify(data, null, 2);
+
+        const blob = new Blob([json], {
+
+            type: "application/json;charset=utf-8"
+
+        });
+
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+
+        link.href = url;
+
+        link.download = `genius-ia-conversation-${id}.json`;
+
+        document.body.appendChild(link);
+
+        link.click();
+
+        link.remove();
+
+        URL.revokeObjectURL(url);
+
+    } catch (error) {
+
+        console.error("EXPORT:", error);
+
+        alert("Export impossible : " + error.message);
+
+    }
+
+}
+
+
+/* =========================================================
+   BIBLIOTHÈQUE
+========================================================= */
+
+async function showLibrary() {
+
+    await showHistory();
+
+}
+
+
+/* =========================================================
+   PROFIL : MODIFICATION
+========================================================= */
+
+function showProfileSettings() {
+
+    if (!currentUser) return;
+
+    const content = openPanel("Mon profil", `
+
+        <div class="genius-card">
+
+            <h3>Informations personnelles</h3>
+
+            <label class="genius-label">Nom complet</label>
+
+            <input
+                id="geniusProfileName"
+                class="genius-input"
+                value="${escapeHTML(currentUser.full_name || "")}"
+            >
+
+            <label class="genius-label">Pays</label>
+
+            <input
+                id="geniusProfileCountry"
+                class="genius-input"
+                value="${escapeHTML(currentUser.country || "")}"
+            >
+
+            <p>
+                Numéro : ${escapeHTML(currentUser.phone || "")}
+            </p>
+
+            <div id="geniusProfileMessage"></div>
+
+            <button
+                class="genius-button"
+                id="geniusSaveProfile"
+            >
+                Enregistrer les modifications
+            </button>
+
+        </div>
+
+        <div class="genius-card">
+
+            <h3>Changer mon mot de passe</h3>
+
+            <label class="genius-label">Mot de passe actuel</label>
+
+            <input
+                type="password"
+                id="geniusCurrentPassword"
+                class="genius-input"
+                autocomplete="current-password"
+            >
+
+            <label class="genius-label">Nouveau mot de passe</label>
+
+            <input
+                type="password"
+                id="geniusNewPassword"
+                class="genius-input"
+                autocomplete="new-password"
+            >
+
+            <label class="genius-label">Confirmer le nouveau mot de passe</label>
+
+            <input
+                type="password"
+                id="geniusConfirmPassword"
+                class="genius-input"
+                autocomplete="new-password"
+            >
+
+            <div id="geniusPasswordMessage"></div>
+
+            <button
+                class="genius-button"
+                id="geniusChangePassword"
+            >
+                Modifier mon mot de passe
+            </button>
+
+        </div>
+
+    `);
+
+    content.querySelector("#geniusSaveProfile")
+        ?.addEventListener("click", saveUserProfile);
+
+    content.querySelector("#geniusChangePassword")
+        ?.addEventListener("click", changeUserPassword);
+
+}
+
+
+/* =========================================================
+   ENREGISTRER PROFIL
+========================================================= */
+
+async function saveUserProfile() {
+
+    const name = document
+        .getElementById("geniusProfileName")
+        ?.value.trim();
+
+    const country = document
+        .getElementById("geniusProfileCountry")
+        ?.value.trim();
+
+    const message = document.getElementById("geniusProfileMessage");
+
+    if (!name || !country) {
+
+        showPanelMessage(
+            message,
+            "Veuillez remplir le nom et le pays.",
+            true
+        );
+
+        return;
+
+    }
+
+    const button = document.getElementById("geniusSaveProfile");
+
+    button.disabled = true;
+
+    try {
+
+        const data = await apiRequest(UPDATE_PROFILE_ENDPOINT, {
+
+            method: "PUT",
+
+            body: JSON.stringify({
+
+                full_name: name,
+
+                country
+
+            })
+
+        });
+
+        currentUser = data.user || {
+
+            ...currentUser,
+
+            full_name: name,
+
+            country
+
+        };
+
+        localStorage.setItem(
+            USER_KEY,
+            JSON.stringify(currentUser)
+        );
+
+        updateUserProfile();
+
+        showPanelMessage(
+            message,
+            "Votre profil a été mis à jour."
+        );
+
+    } catch (error) {
+
+        showPanelMessage(message, error.message, true);
+
+    } finally {
+
+        button.disabled = false;
+
+    }
+
+}
+
+
+/* =========================================================
+   CHANGER MOT DE PASSE
+========================================================= */
+
+async function changeUserPassword() {
+
+    const current_password = document
+        .getElementById("geniusCurrentPassword")
+        ?.value;
+
+    const new_password = document
+        .getElementById("geniusNewPassword")
+        ?.value;
+
+    const confirmation = document
+        .getElementById("geniusConfirmPassword")
+        ?.value;
+
+    const message = document.getElementById("geniusPasswordMessage");
+
+    if (!current_password || !new_password || !confirmation) {
+
+        showPanelMessage(
+            message,
+            "Veuillez remplir tous les champs.",
+            true
+        );
+
+        return;
+
+    }
+
+    if (new_password.length < 8) {
+
+        showPanelMessage(
+            message,
+            "Le nouveau mot de passe doit contenir au moins 8 caractères.",
+            true
+        );
+
+        return;
+
+    }
+
+    if (new_password !== confirmation) {
+
+        showPanelMessage(
+            message,
+            "Les deux nouveaux mots de passe ne correspondent pas.",
+            true
+        );
+
+        return;
+
+    }
+
+    const button = document.getElementById("geniusChangePassword");
+
+    button.disabled = true;
+
+    try {
+
+        await apiRequest(PASSWORD_ENDPOINT, {
+
+            method: "PUT",
+
+            body: JSON.stringify({
+
+                current_password,
+
+                new_password
+
+            })
+
+        });
+
+        document.getElementById("geniusCurrentPassword").value = "";
+        document.getElementById("geniusNewPassword").value = "";
+        document.getElementById("geniusConfirmPassword").value = "";
+
+        showPanelMessage(
+            message,
+            "Votre mot de passe a été modifié."
+        );
+
+    } catch (error) {
+
+        showPanelMessage(message, error.message, true);
+
+    } finally {
+
+        button.disabled = false;
+
+    }
+
+}
+
+
+/* =========================================================
+   PARAMÈTRES
+========================================================= */
+
+function showSettings() {
+
+    const content = openPanel("Paramètres", `
+
+        <div class="genius-card">
+
+            <h3>Compte</h3>
+
+            <p>
+                Gérez vos informations personnelles et votre sécurité.
+            </p>
+
+            <button
+                class="genius-button"
+                id="geniusOpenProfile"
+            >
+                Mon profil
+            </button>
+
+        </div>
+
+        <div class="genius-card">
+
+            <h3>Session</h3>
+
+            <p>
+                Déconnectez-vous de votre compte GENIUS IA.
+            </p>
+
+            <button
+                class="genius-button danger"
+                id="geniusSettingsLogout"
+            >
+                Déconnexion
+            </button>
+
+        </div>
+
+        <div class="genius-card">
+
+            <h3>Application</h3>
+
+            <p>${APP_NAME} — Version ${APP_VERSION}</p>
+
+            <p>Créateur : MARUCE SOLDADO 🇬🇳</p>
+
+            <p>Le futur commence avec nous.</p>
+
+        </div>
+
+    `);
+
+    content.querySelector("#geniusOpenProfile")
+        ?.addEventListener("click", showProfileSettings);
+
+    content.querySelector("#geniusSettingsLogout")
+        ?.addEventListener("click", () => logoutButton?.click());
+
+}
+
+
+/* =========================================================
+   ADMINISTRATION
+========================================================= */
+
+function isAdmin() {
+
+    return Boolean(
+        currentUser &&
+        String(currentUser.role || "").toLowerCase() === "admin"
+    );
+
+}
+
+
+function updateAdminNavigation() {
+
+    if (!sidebar) return;
+
+    let adminButton = document.getElementById("geniusAdminButton");
+
+    if (isAdmin()) {
+
+        if (!adminButton) {
+
+            adminButton = document.createElement("button");
+
+            adminButton.id = "geniusAdminButton";
+            adminButton.className = "nav-item";
+            adminButton.textContent = "Administration";
+
+            adminButton.addEventListener("click", showAdminDashboard);
+
+            const navigation = sidebar.querySelector(".navigation");
+
+            if (navigation) {
+
+                navigation.appendChild(adminButton);
+
+            } else {
+
+                sidebar.appendChild(adminButton);
+
+            }
+
+        }
+
+    } else {
+
+        adminButton?.remove();
+
+    }
+
+}
+
+
+/* =========================================================
+   TABLEAU DE BORD ADMIN
+========================================================= */
+
+async function showAdminDashboard() {
+
+    closeSidebar();
+
+    if (!isAdmin()) {
+
+        alert("Accès réservé aux administrateurs.");
+
+        return;
+
+    }
+
+    const content = openPanel("Administration GENIUS IA", `
+
+        <div class="genius-stat-grid" id="geniusAdminStats">
+
+            <div class="genius-stat">
+                Utilisateurs
+                <strong>...</strong>
+            </div>
+
+            <div class="genius-stat">
+                Actifs
+                <strong>...</strong>
+            </div>
+
+            <div class="genius-stat">
+                Conversations
+                <strong>...</strong>
+            </div>
+
+            <div class="genius-stat">
+                Messages
+                <strong>...</strong>
+            </div>
+
+        </div>
+
+        <div class="genius-card">
+
+            <h3>Gestion des utilisateurs</h3>
+
+            <input
+                id="geniusAdminSearch"
+                class="genius-input"
+                placeholder="Rechercher un utilisateur..."
+            >
+
+            <div id="geniusAdminUsers">
+                <div class="genius-empty">
+                    Chargement des utilisateurs...
+                </div>
+            </div>
+
+        </div>
+
+    `);
+
+    try {
+
+        const data = await apiRequest(ADMIN_DASHBOARD_ENDPOINT, {
+
+            method: "GET"
+
+        });
+
+        const stats = data.statistics || {};
+
+        const statsElement = content.querySelector("#geniusAdminStats");
+
+        statsElement.innerHTML = `
+
+            <div class="genius-stat">
+                Utilisateurs
+                <strong>${Number(stats.total_users || 0)}</strong>
+            </div>
+
+            <div class="genius-stat">
+                Actifs
+                <strong>${Number(stats.active_users || 0)}</strong>
+            </div>
+
+            <div class="genius-stat">
+                Conversations
+                <strong>${Number(stats.total_conversations || 0)}</strong>
+            </div>
+
+            <div class="genius-stat">
+                Messages
+                <strong>${Number(stats.total_messages || 0)}</strong>
+            </div>
+
+        `;
+
+    } catch (error) {
+
+        console.error("ADMIN DASHBOARD:", error);
+
+        alert(
+            "Impossible de charger les statistiques : " +
+            error.message
+        );
+
+    }
+
+    const search = content.querySelector("#geniusAdminSearch");
+
+    search.addEventListener("input", () => {
+
+        clearTimeout(historySearchTimer);
+
+        historySearchTimer = setTimeout(() => {
+
+            loadAdminUsers(search.value);
+
+        }, 350);
+
+    });
+
+    await loadAdminUsers("");
+
+}
+
+
+/* =========================================================
+   LISTE DES UTILISATEURS ADMIN
+========================================================= */
+
+async function loadAdminUsers(search = "") {
+
+    if (!isAdmin()) return;
+
+    const container = document.getElementById("geniusAdminUsers");
+
+    if (!container) return;
+
+    try {
+
+        const url = new URL(ADMIN_USERS_ENDPOINT);
+
+        if (search.trim()) {
+
+            url.searchParams.set("q", search.trim());
+
+        }
+
+        const data = await apiRequest(url.toString(), {
+
+            method: "GET"
+
+        });
+
+        const users = Array.isArray(data.users)
+            ? data.users
+            : [];
+
+        if (users.length === 0) {
+
+            container.innerHTML = `
+                <div class="genius-empty">
+                    Aucun utilisateur trouvé.
+                </div>
+            `;
+
+            return;
+
+        }
+
+        container.innerHTML = users.map(user => {
+
+            const active = user.is_active !== false;
+
+            const admin = user.role === "admin";
+
+            return `
+
+                <div class="genius-card">
+
+                    <h3>${escapeHTML(user.full_name || "Utilisateur")}</h3>
+
+                    <p>
+                        Téléphone : ${escapeHTML(user.phone || "")}
+                    </p>
+
+                    <p>
+                        Pays : ${escapeHTML(user.country || "")}
+                    </p>
+
+                    <p>
+                        Rôle : ${escapeHTML(user.role || "user")}
+                    </p>
+
+                    <p class="genius-status ${active ? "" : "off"}">
+                        ${active ? "Compte actif" : "Compte désactivé"}
+                    </p>
+
+                    <div class="genius-actions">
+
+                        <button
+                            class="genius-button ${active ? "danger" : ""}"
+                            data-user-id="${escapeHTML(user.id)}"
+                            data-status="${active ? "false" : "true"}"
+                        >
+                            ${active ? "Désactiver" : "Activer"}
+                        </button>
+
+                    </div>
+
+                </div>
+
+            `;
+
+        }).join("");
+
+        container.querySelectorAll("[data-user-id]").forEach(button => {
+
+            button.addEventListener("click", async () => {
+
+                const userId = button.dataset.userId;
+
+                const is_active = button.dataset.status === "true";
+
+                await updateUserStatus(userId, is_active);
+
+                await loadAdminUsers(search);
+
+            });
+
+        });
+
+    } catch (error) {
+
+        console.error("ADMIN USERS:", error);
+
+        container.innerHTML = `
+            <div class="genius-empty">
+                Impossible de charger les utilisateurs.
+                <br><br>
+                ${escapeHTML(error.message)}
+            </div>
+        `;
+
+    }
+
+}
+
+
+/* =========================================================
+   ACTIVER / DÉSACTIVER UTILISATEUR
+========================================================= */
+
+async function updateUserStatus(userId, is_active) {
+
+    if (!isAdmin()) {
+
+        alert("Accès refusé.");
+
+        return;
+
+    }
+
+    const action = is_active ? "activer" : "désactiver";
+
+    if (!confirm(`Voulez-vous vraiment ${action} ce compte ?`)) {
+
+        return;
+
+    }
+
+    try {
+
+        await apiRequest(
+
+            `${ADMIN_USERS_ENDPOINT}/${encodeURIComponent(userId)}/status`,
+
+            {
+
+                method: "PUT",
+
+                body: JSON.stringify({
+
+                    is_active
+
+                })
+
+            }
+
+        );
+
+    } catch (error) {
+
+        alert(
+            "Impossible de modifier ce compte : " +
+            error.message
+        );
+
+    }
+
+}
+
+
+/* =========================================================
    SUGGESTIONS
-================================================= */
+========================================================= */
 
 function attachSuggestionEvents() {
 
@@ -1550,68 +2861,221 @@ function attachSuggestionEvents() {
 }
 
 
-/* =================================================
-   HISTORIQUE
-================================================= */
+/* =========================================================
+   NAVIGATION
+========================================================= */
 
-function showHistory() {
+function attachNavigationEvents() {
 
-    if (conversations.length === 0) {
+    if (!sidebar) return;
 
-        alert("Aucune conversation enregistrée.");
-
-        return;
-
-    }
-
-    const history = conversations
-
-        .map((conversation, index) => {
-
-            return `${index + 1}. ${conversation.title}`;
-
-        })
-
-        .join("\n");
-
-    const selection = prompt(
-
-        "HISTORIQUE GENIUS IA\n\n" +
-
-        history +
-
-        "\n\nEntrez le numéro de la conversation :"
-
+    const navigationButtons = sidebar.querySelectorAll(
+        ".navigation .nav-item"
     );
 
-    if (selection === null) return;
+    navigationButtons.forEach(button => {
 
-    const index = Number(selection) - 1;
+        if (button.dataset.geniusNavigationBound === "true") return;
 
-    if (
+        button.dataset.geniusNavigationBound = "true";
 
-        !Number.isInteger(index) ||
+        button.addEventListener("click", () => {
 
-        index < 0 ||
+            const label = button.textContent
+                .trim()
+                .toLowerCase();
 
-        index >= conversations.length
+            if (
+                label.includes("accueil") ||
+                label.includes("home")
+            ) {
 
-    ) {
+                closePanel();
 
-        alert("Numéro invalide.");
+                activeConversation = null;
 
-        return;
+                if (messages) messages.innerHTML = "";
 
-    }
+                showWelcome();
 
-    openConversation(conversations[index].id);
+                closeSidebar();
+
+                return;
+
+            }
+
+            if (label.includes("historique")) {
+
+                showHistory();
+
+                return;
+
+            }
+
+            if (
+                label.includes("bibliothèque") ||
+                label.includes("bibliotheque")
+            ) {
+
+                showLibrary();
+
+                return;
+
+            }
+
+            if (
+                label.includes("paramètres") ||
+                label.includes("parametres") ||
+                label.includes("settings")
+            ) {
+
+                showSettings();
+
+                return;
+
+            }
+
+            if (
+                label.includes("découvrir") ||
+                label.includes("decouvrir") ||
+                label.includes("outils")
+            ) {
+
+                showTools();
+
+                return;
+
+            }
+
+        });
+
+    });
 
 }
 
 
-/* =================================================
+/* =========================================================
+   DÉCOUVRIR LES OUTILS
+========================================================= */
+
+function showTools() {
+
+    const content = openPanel("Découvrir les outils", `
+
+        <div class="genius-card">
+
+            <h3>✍️ Rédaction</h3>
+
+            <p>
+                Rédiger des textes, lettres, messages,
+                publications et documents.
+            </p>
+
+            <button
+                class="genius-button"
+                data-prompt="Aide-moi à rédiger un texte professionnel."
+            >
+                Utiliser
+            </button>
+
+        </div>
+
+        <div class="genius-card">
+
+            <h3>🌍 Traduction</h3>
+
+            <p>
+                Traduire des textes et comprendre différentes langues.
+            </p>
+
+            <button
+                class="genius-button"
+                data-prompt="Je souhaite traduire un texte. Aide-moi."
+            >
+                Utiliser
+            </button>
+
+        </div>
+
+        <div class="genius-card">
+
+            <h3>💻 Programmation</h3>
+
+            <p>
+                Comprendre, écrire et corriger du code informatique.
+            </p>
+
+            <button
+                class="genius-button"
+                data-prompt="Aide-moi à programmer et à corriger mon code."
+            >
+                Utiliser
+            </button>
+
+        </div>
+
+        <div class="genius-card">
+
+            <h3>📚 Apprentissage</h3>
+
+            <p>
+                Apprendre, réviser et obtenir des explications.
+            </p>
+
+            <button
+                class="genius-button"
+                data-prompt="Je veux apprendre quelque chose de nouveau. Propose-moi une leçon."
+            >
+                Utiliser
+            </button>
+
+        </div>
+
+        <div class="genius-card">
+
+            <h3>🔎 Recherche et idées</h3>
+
+            <p>
+                Réfléchir, organiser des projets et trouver des idées.
+            </p>
+
+            <button
+                class="genius-button"
+                data-prompt="Aide-moi à développer une idée de projet."
+            >
+                Utiliser
+            </button>
+
+        </div>
+
+    `);
+
+    content.querySelectorAll("[data-prompt]").forEach(button => {
+
+        button.addEventListener("click", () => {
+
+            const prompt = button.dataset.prompt;
+
+            closePanel();
+
+            if (userInput) {
+
+                userInput.value = prompt;
+
+                userInput.focus();
+
+            }
+
+        });
+
+    });
+
+}
+
+
+/* =========================================================
    MENU MOBILE
-================================================= */
+========================================================= */
 
 function toggleSidebar() {
 
@@ -1622,9 +3086,9 @@ function toggleSidebar() {
 }
 
 
-/* =================================================
-   ÉVÉNEMENTS CHAT
-================================================= */
+/* =========================================================
+   ÉVÉNEMENTS PRINCIPAUX
+========================================================= */
 
 function attachEvents() {
 
@@ -1632,10 +3096,7 @@ function attachEvents() {
 
     eventsAttached = true;
 
-    sendButton?.addEventListener(
-        "click",
-        sendMessage
-    );
+    sendButton?.addEventListener("click", sendMessage);
 
     newChatButton?.addEventListener(
         "click",
@@ -1654,13 +3115,7 @@ function attachEvents() {
 
     userInput?.addEventListener("keydown", event => {
 
-        if (
-
-            event.key === "Enter" &&
-
-            !event.shiftKey
-
-        ) {
+        if (event.key === "Enter" && !event.shiftKey) {
 
             event.preventDefault();
 
@@ -1675,7 +3130,6 @@ function attachEvents() {
         userInput.style.height = "auto";
 
         userInput.style.height =
-
             Math.min(userInput.scrollHeight, 160) + "px";
 
     });
@@ -1702,14 +3156,18 @@ function attachEvents() {
 
     attachSuggestionEvents();
 
+    attachNavigationEvents();
+
 }
 
 
-/* =================================================
+/* =========================================================
    DÉMARRAGE
-================================================= */
+========================================================= */
 
 document.addEventListener("DOMContentLoaded", async () => {
+
+    injectGeniusStyles();
 
     if (
 
@@ -1724,9 +3182,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     ) {
 
         console.error(
-
             "Interface d'authentification introuvable. Vérifie index.html."
-
         );
 
         return;
