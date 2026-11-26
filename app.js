@@ -1,21 +1,51 @@
 /* =================================================
-   GENIUS IA V2.0
-   LE FUTUR COMMENCE AVEC NOUS
+   GENIUS IA V2.2
+   AUTHENTIFICATION + CHAT IA
    Créateur : MARUCE SOLDADO 🇬🇳
-   MOTEUR IA : OPENROUTER
-   SERVEUR : VERCEL
 ================================================= */
 
 "use strict";
+
+/* =================================================
+   CONFIGURATION
+================================================= */
 
 const APP_NAME = "GENIUS IA";
 
 const API_BASE_URL = "https://genius-ia-sand.vercel.app";
 
 const CHAT_ENDPOINT = `${API_BASE_URL}/api/chat`;
+const LOGIN_ENDPOINT = `${API_BASE_URL}/api/auth/login`;
+const REGISTER_ENDPOINT = `${API_BASE_URL}/api/auth/register`;
+const PROFILE_ENDPOINT = `${API_BASE_URL}/api/auth/me`;
 
-const STORAGE_KEY = "genius_ia_conversations_v1";
+const TOKEN_KEY = "genius_ia_token";
+const USER_KEY = "genius_ia_user";
+
 const ACTIVE_KEY = "genius_ia_active_v1";
+
+let STORAGE_KEY = null;
+
+let currentUser = null;
+let conversations = [];
+let activeConversation = null;
+let isSending = false;
+
+
+/* =================================================
+   ÉLÉMENTS HTML
+================================================= */
+
+const authScreen = document.getElementById("authScreen");
+const mainApp = document.getElementById("mainApp");
+
+const loginForm = document.getElementById("loginForm");
+const registerForm = document.getElementById("registerForm");
+
+const loginTab = document.getElementById("loginTab");
+const registerTab = document.getElementById("registerTab");
+
+const authMessage = document.getElementById("authMessage");
 
 const welcome = document.getElementById("welcome");
 const chatArea = document.getElementById("chatArea");
@@ -29,20 +59,437 @@ const mobileMenu = document.getElementById("mobileMenu");
 const sidebar = document.getElementById("sidebar");
 const historyButton = document.getElementById("historyButton");
 
-let conversations = [];
-let activeConversation = null;
-let isSending = false;
+const logoutButton = document.getElementById("logoutButton");
+
+const userNameElement = document.getElementById("userName");
+const userPhoneElement = document.getElementById("userPhone");
+const userAvatar = document.getElementById("userAvatar");
 
 
 /* =================================================
-   INITIALISATION
+   OUTILS
 ================================================= */
 
-function initializeApp() {
+function getToken() {
+    return localStorage.getItem(TOKEN_KEY);
+}
+
+function getUserStorageKey(userId) {
+    return `genius_ia_conversations_${userId}`;
+}
+
+function showAuthMessage(message, type = "error") {
+    if (!authMessage) return;
+
+    authMessage.textContent = message;
+    authMessage.className = `auth-message ${type}`;
+}
+
+function setButtonLoading(button, loading, normalText) {
+    if (!button) return;
+
+    button.disabled = loading;
+    button.textContent = loading ? "Patientez..." : normalText;
+}
+
+async function apiRequest(url, options = {}) {
+
+    const headers = {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+    };
+
+    const token = getToken();
+
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+        ...options,
+        headers
+    });
+
+    let data;
+
+    try {
+        data = await response.json();
+    } catch {
+        throw new Error("Réponse invalide du serveur.");
+    }
+
+    if (!response.ok || !data.success) {
+
+        throw new Error(
+            data.error || "Une erreur est survenue."
+        );
+
+    }
+
+    return data;
+}
+
+
+/* =================================================
+   AFFICHAGE CONNEXION / INSCRIPTION
+================================================= */
+
+function showLoginForm() {
+
+    loginForm.hidden = false;
+    registerForm.hidden = true;
+
+    loginTab.classList.add("active");
+    registerTab.classList.remove("active");
+
+    showAuthMessage("");
+
+}
+
+function showRegisterForm() {
+
+    loginForm.hidden = true;
+    registerForm.hidden = false;
+
+    loginTab.classList.remove("active");
+    registerTab.classList.add("active");
+
+    showAuthMessage("");
+
+}
+
+loginTab.addEventListener("click", showLoginForm);
+registerTab.addEventListener("click", showRegisterForm);
+
+
+/* =================================================
+   INSCRIPTION
+================================================= */
+
+registerForm.addEventListener("submit", async event => {
+
+    event.preventDefault();
+
+    const button = registerForm.querySelector(
+        'button[type="submit"]'
+    );
+
+    const full_name = document
+        .getElementById("registerName")
+        .value.trim();
+
+    const country = document
+        .getElementById("registerCountry")
+        .value.trim();
+
+    const phone = document
+        .getElementById("registerPhone")
+        .value.trim();
+
+    const password = document
+        .getElementById("registerPassword")
+        .value;
+
+    if (!full_name || !country || !phone || !password) {
+
+        showAuthMessage("Veuillez remplir tous les champs.");
+
+        return;
+
+    }
+
+    if (password.length < 8) {
+
+        showAuthMessage(
+            "Le mot de passe doit contenir au moins 8 caractères."
+        );
+
+        return;
+
+    }
+
+    setButtonLoading(button, true, "Créer mon compte");
+
+    showAuthMessage("Création de votre compte...", "loading");
+
+    try {
+
+        const data = await apiRequest(REGISTER_ENDPOINT, {
+
+            method: "POST",
+
+            body: JSON.stringify({
+                full_name,
+                country,
+                phone,
+                password
+            })
+
+        });
+
+        if (!data.token || !data.user) {
+            throw new Error("Réponse d'inscription incomplète.");
+        }
+
+        localStorage.setItem(TOKEN_KEY, data.token);
+
+        localStorage.setItem(
+            USER_KEY,
+            JSON.stringify(data.user)
+        );
+
+        currentUser = data.user;
+
+        showAuthMessage(
+            "Compte créé avec succès !",
+            "success"
+        );
+
+        registerForm.reset();
+
+        enterApplication();
+
+    } catch (error) {
+
+        console.error("REGISTER ERROR:", error);
+
+        showAuthMessage(error.message);
+
+    } finally {
+
+        setButtonLoading(button, false, "Créer mon compte");
+
+    }
+
+});
+
+
+/* =================================================
+   CONNEXION
+================================================= */
+
+loginForm.addEventListener("submit", async event => {
+
+    event.preventDefault();
+
+    const button = loginForm.querySelector(
+        'button[type="submit"]'
+    );
+
+    const phone = document
+        .getElementById("loginPhone")
+        .value.trim();
+
+    const password = document
+        .getElementById("loginPassword")
+        .value;
+
+    if (!phone || !password) {
+
+        showAuthMessage(
+            "Veuillez saisir votre numéro et votre mot de passe."
+        );
+
+        return;
+
+    }
+
+    setButtonLoading(button, true, "Se connecter");
+
+    showAuthMessage("Connexion en cours...", "loading");
+
+    try {
+
+        const data = await apiRequest(LOGIN_ENDPOINT, {
+
+            method: "POST",
+
+            body: JSON.stringify({
+                phone,
+                password
+            })
+
+        });
+
+        if (!data.token || !data.user) {
+            throw new Error("Réponse de connexion incomplète.");
+        }
+
+        localStorage.setItem(TOKEN_KEY, data.token);
+
+        localStorage.setItem(
+            USER_KEY,
+            JSON.stringify(data.user)
+        );
+
+        currentUser = data.user;
+
+        loginForm.reset();
+
+        enterApplication();
+
+    } catch (error) {
+
+        console.error("LOGIN ERROR:", error);
+
+        showAuthMessage(error.message);
+
+    } finally {
+
+        setButtonLoading(button, false, "Se connecter");
+
+    }
+
+});
+
+
+/* =================================================
+   VÉRIFICATION DE SESSION
+================================================= */
+
+async function verifySession() {
+
+    const token = getToken();
+
+    if (!token) {
+        showAuthentication();
+        return false;
+    }
+
+    try {
+
+        const data = await apiRequest(PROFILE_ENDPOINT, {
+            method: "GET"
+        });
+
+        currentUser = data.user;
+
+        localStorage.setItem(
+            USER_KEY,
+            JSON.stringify(currentUser)
+        );
+
+        return true;
+
+    } catch (error) {
+
+        console.warn("SESSION EXPIRÉE:", error.message);
+
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+
+        currentUser = null;
+
+        showAuthentication();
+
+        return false;
+
+    }
+
+}
+
+
+/* =================================================
+   AFFICHAGE AUTHENTIFICATION
+================================================= */
+
+function showAuthentication() {
+
+    authScreen.hidden = false;
+    mainApp.hidden = true;
+
+    showLoginForm();
+
+}
+
+
+/* =================================================
+   OUVERTURE APPLICATION
+================================================= */
+
+function enterApplication() {
+
+    if (!currentUser) {
+        showAuthentication();
+        return;
+    }
+
+    authScreen.hidden = true;
+    mainApp.hidden = false;
+
+    updateUserProfile();
+
+    STORAGE_KEY = getUserStorageKey(currentUser.id);
+
+    initializeChat();
+
+}
+
+
+/* =================================================
+   PROFIL UTILISATEUR
+================================================= */
+
+function updateUserProfile() {
+
+    if (!currentUser) return;
+
+    const name =
+        currentUser.full_name ||
+        currentUser.phone ||
+        "Utilisateur";
+
+    if (userNameElement) {
+        userNameElement.textContent = name;
+    }
+
+    if (userPhoneElement) {
+        userPhoneElement.textContent = currentUser.phone;
+    }
+
+    if (userAvatar) {
+        userAvatar.textContent = name.charAt(0).toUpperCase();
+    }
+
+}
+
+
+/* =================================================
+   DÉCONNEXION
+================================================= */
+
+logoutButton.addEventListener("click", () => {
+
+    if (!confirm("Voulez-vous vraiment vous déconnecter ?")) {
+        return;
+    }
+
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+
+    currentUser = null;
+
+    conversations = [];
+    activeConversation = null;
+
+    showAuthentication();
+
+});
+
+
+/* =================================================
+   INITIALISATION CHAT
+================================================= */
+
+function initializeChat() {
+
+    if (!STORAGE_KEY) return;
 
     loadConversations();
 
-    const savedActive = localStorage.getItem(ACTIVE_KEY);
+    const savedActive = localStorage.getItem(
+        `${ACTIVE_KEY}_${currentUser.id}`
+    );
 
     if (
         savedActive &&
@@ -55,6 +502,8 @@ function initializeApp() {
 
     } else {
 
+        activeConversation = null;
+
         showWelcome();
 
     }
@@ -65,7 +514,7 @@ function initializeApp() {
 
 
 /* =================================================
-   CHARGEMENT DES CONVERSATIONS
+   CHARGEMENT CONVERSATIONS
 ================================================= */
 
 function loadConversations() {
@@ -82,7 +531,7 @@ function loadConversations() {
 
     } catch (error) {
 
-        console.error("Erreur de chargement :", error);
+        console.error("Erreur de chargement:", error);
 
         conversations = [];
 
@@ -97,6 +546,8 @@ function loadConversations() {
 
 function saveConversations() {
 
+    if (!STORAGE_KEY) return;
+
     try {
 
         localStorage.setItem(
@@ -104,10 +555,10 @@ function saveConversations() {
             JSON.stringify(conversations)
         );
 
-        if (activeConversation) {
+        if (activeConversation && currentUser) {
 
             localStorage.setItem(
-                ACTIVE_KEY,
+                `${ACTIVE_KEY}_${currentUser.id}`,
                 activeConversation
             );
 
@@ -115,7 +566,7 @@ function saveConversations() {
 
     } catch (error) {
 
-        console.error("Erreur de sauvegarde :", error);
+        console.error("Erreur de sauvegarde:", error);
 
     }
 
@@ -176,7 +627,7 @@ function createNewConversation() {
 
 
 /* =================================================
-   AFFICHAGE ACCUEIL
+   ACCUEIL
 ================================================= */
 
 function showWelcome() {
@@ -189,7 +640,7 @@ function showWelcome() {
 
 
 /* =================================================
-   AFFICHAGE DISCUSSION
+   DISCUSSION
 ================================================= */
 
 function showChat() {
@@ -202,7 +653,7 @@ function showChat() {
 
 
 /* =================================================
-   AFFICHER UNE CONVERSATION
+   AFFICHAGE CONVERSATION
 ================================================= */
 
 function renderConversation(id) {
@@ -212,6 +663,8 @@ function renderConversation(id) {
     );
 
     if (!conversation) {
+
+        activeConversation = null;
 
         showWelcome();
 
@@ -240,7 +693,7 @@ function renderConversation(id) {
 
 
 /* =================================================
-   AFFICHAGE DES MESSAGES
+   AFFICHAGE MESSAGE
 ================================================= */
 
 function displayMessage(role, content) {
@@ -273,14 +726,14 @@ function displayMessage(role, content) {
 
     const paragraph = document.createElement("p");
 
+    paragraph.style.whiteSpace = "pre-wrap";
+
     paragraph.textContent = content;
 
     messageContent.appendChild(name);
-
     messageContent.appendChild(paragraph);
 
     wrapper.appendChild(avatar);
-
     wrapper.appendChild(messageContent);
 
     messages.appendChild(wrapper);
@@ -323,11 +776,9 @@ function showThinking() {
     paragraph.textContent = "GENIUS IA réfléchit...";
 
     content.appendChild(name);
-
     content.appendChild(paragraph);
 
     wrapper.appendChild(avatar);
-
     wrapper.appendChild(content);
 
     messages.appendChild(wrapper);
@@ -338,7 +789,7 @@ function showThinking() {
 
 
 /* =================================================
-   SUPPRIMER INDICATEUR
+   SUPPRESSION INDICATEUR
 ================================================= */
 
 function removeThinking() {
@@ -347,15 +798,13 @@ function removeThinking() {
         "genius-thinking"
     );
 
-    if (thinking) {
-        thinking.remove();
-    }
+    if (thinking) thinking.remove();
 
 }
 
 
 /* =================================================
-   SCROLL AUTOMATIQUE
+   SCROLL
 ================================================= */
 
 function scrollToBottom() {
@@ -379,7 +828,7 @@ function scrollToBottom() {
 
 
 /* =================================================
-   COMMUNICATION AVEC LE SERVEUR
+   APPEL MOTEUR IA
 ================================================= */
 
 async function askGeniusAI(messageHistory) {
@@ -389,15 +838,12 @@ async function askGeniusAI(messageHistory) {
         method: "POST",
 
         headers: {
-
-            "Content-Type": "application/json"
-
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${getToken()}`
         },
 
         body: JSON.stringify({
-
             messages: messageHistory
-
         })
 
     });
@@ -408,19 +854,16 @@ async function askGeniusAI(messageHistory) {
 
         data = await response.json();
 
-    } catch (error) {
+    } catch {
 
-        throw new Error(
-            "Le serveur a envoyé une réponse invalide."
-        );
+        throw new Error("Réponse invalide du serveur.");
 
     }
 
     if (!response.ok || !data.success) {
 
         throw new Error(
-            data.error ||
-            "Impossible de contacter GENIUS IA."
+            data.error || "Impossible de contacter GENIUS IA."
         );
 
     }
@@ -430,9 +873,7 @@ async function askGeniusAI(messageHistory) {
         !data.reply.trim()
     ) {
 
-        throw new Error(
-            "GENIUS IA n'a pas reçu de réponse valide."
-        );
+        throw new Error("Réponse IA invalide.");
 
     }
 
@@ -442,12 +883,12 @@ async function askGeniusAI(messageHistory) {
 
 
 /* =================================================
-   ENVOYER UN MESSAGE
+   ENVOI MESSAGE
 ================================================= */
 
 async function sendMessage() {
 
-    if (isSending) return;
+    if (isSending || !currentUser) return;
 
     const text = userInput.value.trim();
 
@@ -484,7 +925,6 @@ async function sendMessage() {
     isSending = true;
 
     sendButton.disabled = true;
-
     userInput.disabled = true;
 
     userInput.value = "";
@@ -520,24 +960,18 @@ async function sendMessage() {
 
     try {
 
-        // Garder uniquement les messages utiles
-        // Le serveur accepte maximum 30 messages.
-
         const messageHistory = conversation.messages
+
             .filter(message =>
                 ["user", "assistant"].includes(message.role)
             )
+
             .slice(-30)
+
             .map(message => ({
-
                 role: message.role,
-
                 content: message.content
-
             }));
-
-
-        // CONNEXION AU VÉRITABLE MOTEUR IA
 
         const answer = await askGeniusAI(messageHistory);
 
@@ -567,9 +1001,8 @@ async function sendMessage() {
 
         displayMessage(
             "assistant",
-            "Impossible de traiter votre demande pour le moment.\n\n" +
-            error.message +
-            "\n\nVeuillez réessayer."
+            "Impossible de traiter votre demande.\n\n" +
+            error.message
         );
 
     } finally {
@@ -577,7 +1010,6 @@ async function sendMessage() {
         isSending = false;
 
         sendButton.disabled = false;
-
         userInput.disabled = false;
 
         userInput.focus();
@@ -593,11 +1025,7 @@ async function sendMessage() {
 
 function attachSuggestionEvents() {
 
-    const suggestions = document.querySelectorAll(
-        ".suggestion"
-    );
-
-    suggestions.forEach(button => {
+    document.querySelectorAll(".suggestion").forEach(button => {
 
         button.addEventListener("click", () => {
 
@@ -631,17 +1059,15 @@ function showHistory() {
     }
 
     const history = conversations
-        .map((conversation, index) => {
-
-            return `${index + 1}. ${conversation.title}`;
-
-        })
+        .map((conversation, index) =>
+            `${index + 1}. ${conversation.title}`
+        )
         .join("\n");
 
     const selection = prompt(
         "HISTORIQUE GENIUS IA\n\n" +
         history +
-        "\n\nEntrez le numéro de la conversation à ouvrir :"
+        "\n\nEntrez le numéro de la conversation :"
     );
 
     if (selection === null) return;
@@ -654,7 +1080,7 @@ function showHistory() {
         index >= conversations.length
     ) {
 
-        alert("Numéro de conversation invalide.");
+        alert("Numéro invalide.");
 
         return;
 
@@ -677,15 +1103,18 @@ function toggleSidebar() {
 
 
 /* =================================================
-   ÉVÉNEMENTS
+   ÉVÉNEMENTS CHAT
 ================================================= */
+
+let eventsAttached = false;
 
 function attachEvents() {
 
-    sendButton.addEventListener(
-        "click",
-        sendMessage
-    );
+    if (eventsAttached) return;
+
+    eventsAttached = true;
+
+    sendButton.addEventListener("click", sendMessage);
 
     newChatButton.addEventListener(
         "click",
@@ -750,8 +1179,29 @@ function attachEvents() {
    DÉMARRAGE
 ================================================= */
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
 
-    initializeApp();
+    if (
+        !authScreen ||
+        !mainApp ||
+        !loginForm ||
+        !registerForm
+    ) {
+
+        console.error(
+            "Interface d'authentification introuvable. Vérifie index.html."
+        );
+
+        return;
+
+    }
+
+    showAuthentication();
+
+    const validSession = await verifySession();
+
+    if (validSession) {
+        enterApplication();
+    }
 
 });
