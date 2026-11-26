@@ -1,9 +1,10 @@
 "use strict";
 
 /* =========================================================
-   GENIUS IA — BACKEND V2.5.0
+   GENIUS IA — BACKEND V2.6.0
    Créateur : MARUCE SOLDADO 🇬🇳
    Slogan : Le futur commence avec nous.
+   Nouveauté : MÉMOIRE AUTOMATIQUE DES CONVERSATIONS
 ========================================================= */
 
 require("dotenv").config();
@@ -17,22 +18,32 @@ const jwt = require("jsonwebtoken");
 const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
-const VERSION = "2.5.0";
+const VERSION = "2.6.0";
 
-/* CONFIGURATION */
+/* =========================================================
+   CONFIGURATION
+========================================================= */
 
 const PORT = process.env.PORT || 3000;
+
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const AI_MODEL = process.env.AI_MODEL || "openai/gpt-4o-mini";
+
+const AI_MODEL =
+  process.env.AI_MODEL || "openai/gpt-4o-mini";
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
+
 const SUPABASE_SECRET_KEY =
   process.env.SUPABASE_SECRET_KEY ||
   process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const FRONTEND_URL =
   process.env.FRONTEND_URL ||
   "https://marucesoldado752-ux.github.io";
+
+const MEMORY_LIMIT = 24;
 
 if (!OPENROUTER_API_KEY) {
   console.error("ERREUR : OPENROUTER_API_KEY manquante");
@@ -51,10 +62,14 @@ if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
 }
 
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
-  throw new Error("JWT_SECRET doit contenir au moins 32 caractères");
+  throw new Error(
+    "JWT_SECRET doit contenir au moins 32 caractères"
+  );
 }
 
-/* SUPABASE */
+/* =========================================================
+   SUPABASE
+========================================================= */
 
 const supabase = createClient(
   SUPABASE_URL,
@@ -67,7 +82,9 @@ const supabase = createClient(
   }
 );
 
-/* MIDDLEWARES */
+/* =========================================================
+   MIDDLEWARES
+========================================================= */
 
 app.set("trust proxy", 1);
 
@@ -114,7 +131,9 @@ const apiLimiter = rateLimit({
 
 app.use("/api", apiLimiter);
 
-/* OUTILS */
+/* =========================================================
+   OUTILS
+========================================================= */
 
 function cleanText(value, maxLength = 500) {
   if (typeof value !== "string") return "";
@@ -163,7 +182,9 @@ function safeConversation(conversation) {
   };
 }
 
-/* AUTHENTIFICATION */
+/* =========================================================
+   AUTHENTIFICATION
+========================================================= */
 
 function auth(req, res, next) {
   try {
@@ -197,12 +218,16 @@ function auth(req, res, next) {
   }
 }
 
-/* VÉRIFICATION DU COMPTE */
+/* =========================================================
+   VÉRIFICATION DU COMPTE
+========================================================= */
 
 async function getActiveUser(userId) {
   const { data: user, error } = await supabase
     .from("genius_users")
-    .select("id, full_name, phone, country, role, is_active, created_at")
+    .select(
+      "id, full_name, phone, country, role, is_active, created_at"
+    )
     .eq("id", userId)
     .maybeSingle();
 
@@ -215,7 +240,9 @@ async function getActiveUser(userId) {
   return user;
 }
 
-/* PROTECTION ADMINISTRATEUR */
+/* =========================================================
+   PROTECTION ADMINISTRATEUR
+========================================================= */
 
 async function adminOnly(req, res, next) {
   try {
@@ -248,9 +275,14 @@ async function adminOnly(req, res, next) {
   }
 }
 
-/* VÉRIFICATION DE PROPRIÉTÉ */
+/* =========================================================
+   VÉRIFICATION DE PROPRIÉTÉ
+========================================================= */
 
-async function getOwnedConversation(conversationId, userId) {
+async function getOwnedConversation(
+  conversationId,
+  userId
+) {
   const { data, error } = await supabase
     .from("genius_conversations")
     .select("*")
@@ -263,7 +295,56 @@ async function getOwnedConversation(conversationId, userId) {
   return data;
 }
 
-/* ACCUEIL */
+/* =========================================================
+   MÉMOIRE AUTOMATIQUE V2.6.0
+========================================================= */
+
+/*
+  Récupère les anciens messages d'une conversation.
+
+  La mémoire est :
+  - liée à l'utilisateur connecté ;
+  - liée à la conversation concernée ;
+  - récupérée depuis Supabase ;
+  - conservée après reconnexion.
+
+  Les 24 derniers messages sont utilisés comme contexte.
+*/
+
+async function getConversationMemory(
+  conversationId,
+  userId
+) {
+  const { data, error } = await supabase
+    .from("genius_messages")
+    .select("role, content, created_at")
+    .eq("conversation_id", conversationId)
+    .eq("user_id", userId)
+    .order("created_at", {
+      ascending: false
+    })
+    .limit(MEMORY_LIMIT);
+
+  if (error) throw error;
+
+  return (data || [])
+    .reverse()
+    .filter(message => {
+      return (
+        ["user", "assistant"].includes(message.role) &&
+        typeof message.content === "string" &&
+        message.content.trim().length > 0
+      );
+    })
+    .map(message => ({
+      role: message.role,
+      content: message.content
+    }));
+}
+
+/* =========================================================
+   ACCUEIL
+========================================================= */
 
 app.get("/", (req, res) => {
   res.json({
@@ -272,11 +353,14 @@ app.get("/", (req, res) => {
     creator: "MARUCE SOLDADO",
     slogan: "Le futur commence avec nous.",
     version: VERSION,
-    server: "online"
+    server: "online",
+    memory: true
   });
 });
 
-/* HEALTH CHECK */
+/* =========================================================
+   HEALTH CHECK
+========================================================= */
 
 app.get("/health", (req, res) => {
   res.json({
@@ -286,11 +370,15 @@ app.get("/health", (req, res) => {
     databaseConfigured: Boolean(
       SUPABASE_URL && SUPABASE_SECRET_KEY
     ),
+    memoryEnabled: true,
+    memoryLimit: MEMORY_LIMIT,
     version: VERSION
   });
 });
 
-/* INSCRIPTION */
+/* =========================================================
+   INSCRIPTION
+========================================================= */
 
 app.post("/api/auth/register", async (req, res) => {
   try {
@@ -320,16 +408,19 @@ app.post("/api/auth/register", async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        error: "Le mot de passe doit contenir entre 8 et 128 caractères"
+        error:
+          "Le mot de passe doit contenir entre 8 et 128 caractères"
       });
     }
 
-    const { data: existingUser, error: searchError } =
-      await supabase
-        .from("genius_users")
-        .select("id")
-        .eq("phone", phone)
-        .maybeSingle();
+    const {
+      data: existingUser,
+      error: searchError
+    } = await supabase
+      .from("genius_users")
+      .select("id")
+      .eq("phone", phone)
+      .maybeSingle();
 
     if (searchError) throw searchError;
 
@@ -388,7 +479,9 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-/* CONNEXION */
+/* =========================================================
+   CONNEXION
+========================================================= */
 
 app.post("/api/auth/login", async (req, res) => {
   try {
@@ -455,7 +548,9 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-/* PROFIL UTILISATEUR */
+/* =========================================================
+   PROFIL UTILISATEUR
+========================================================= */
 
 app.get("/api/auth/me", auth, async (req, res) => {
   try {
@@ -483,7 +578,9 @@ app.get("/api/auth/me", auth, async (req, res) => {
   }
 });
 
-/* MODIFIER SON PROFIL */
+/* =========================================================
+   MODIFIER SON PROFIL
+========================================================= */
 
 app.put("/api/profile", auth, async (req, res) => {
   try {
@@ -537,7 +634,9 @@ app.put("/api/profile", auth, async (req, res) => {
   }
 });
 
-/* CHANGER SON MOT DE PASSE */
+/* =========================================================
+   CHANGER SON MOT DE PASSE
+========================================================= */
 
 app.put("/api/auth/password", auth, async (req, res) => {
   try {
@@ -563,10 +662,14 @@ app.put("/api/auth/password", auth, async (req, res) => {
       });
     }
 
-    if (newPassword.length < 8 || newPassword.length > 128) {
+    if (
+      newPassword.length < 8 ||
+      newPassword.length > 128
+    ) {
       return res.status(400).json({
         success: false,
-        error: "Le nouveau mot de passe doit contenir entre 8 et 128 caractères"
+        error:
+          "Le nouveau mot de passe doit contenir entre 8 et 128 caractères"
       });
     }
 
@@ -618,7 +721,9 @@ app.put("/api/auth/password", auth, async (req, res) => {
   }
 });
 
-/* CRÉER UNE CONVERSATION */
+/* =========================================================
+   CRÉER UNE CONVERSATION
+========================================================= */
 
 app.post("/api/conversations", auth, async (req, res) => {
   try {
@@ -661,7 +766,9 @@ app.post("/api/conversations", auth, async (req, res) => {
   }
 });
 
-/* RECHERCHER ET RÉCUPÉRER LES CONVERSATIONS */
+/* =========================================================
+   RÉCUPÉRER LES CONVERSATIONS
+========================================================= */
 
 app.get("/api/conversations", auth, async (req, res) => {
   try {
@@ -709,7 +816,9 @@ app.get("/api/conversations", auth, async (req, res) => {
   }
 });
 
-/* RENOMMER UNE CONVERSATION */
+/* =========================================================
+   RENOMMER UNE CONVERSATION
+========================================================= */
 
 app.put(
   "/api/conversations/:id",
@@ -776,7 +885,9 @@ app.put(
   }
 );
 
-/* RÉCUPÉRER LES MESSAGES */
+/* =========================================================
+   RÉCUPÉRER LES MESSAGES
+========================================================= */
 
 app.get(
   "/api/conversations/:id/messages",
@@ -832,7 +943,9 @@ app.get(
   }
 );
 
-/* EXPORTER UNE CONVERSATION */
+/* =========================================================
+   EXPORTER UNE CONVERSATION
+========================================================= */
 
 app.get(
   "/api/conversations/:id/export",
@@ -890,7 +1003,9 @@ app.get(
   }
 );
 
-/* SUPPRIMER UNE CONVERSATION */
+/* =========================================================
+   SUPPRIMER UNE CONVERSATION
+========================================================= */
 
 app.delete(
   "/api/conversations/:id",
@@ -942,7 +1057,9 @@ app.delete(
   }
 );
 
-/* SUPPRIMER TOUTES SES CONVERSATIONS */
+/* =========================================================
+   SUPPRIMER TOUTES SES CONVERSATIONS
+========================================================= */
 
 app.delete("/api/conversations", auth, async (req, res) => {
   try {
@@ -977,118 +1094,11 @@ app.delete("/api/conversations", auth, async (req, res) => {
   }
 });
 
-/* CHAT GENIUS IA */
+/* =========================================================
+   PERSONNALITÉ GENIUS IA V2.6.0
+========================================================= */
 
-app.post("/api/chat", auth, async (req, res) => {
-  try {
-    const user = await getActiveUser(req.user.id);
-
-    if (!user) {
-      return res.status(403).json({
-        success: false,
-        error: "Votre compte est désactivé"
-      });
-    }
-
-    if (!OPENROUTER_API_KEY) {
-      return res.status(503).json({
-        success: false,
-        error: "Le service IA est momentanément indisponible"
-      });
-    }
-
-    const messages = req.body.messages;
-
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "Votre message est vide"
-      });
-    }
-
-    if (messages.length > 30) {
-      return res.status(400).json({
-        success: false,
-        error: "Trop de messages dans cette conversation"
-      });
-    }
-
-    const cleanMessages = [];
-
-    for (const message of messages) {
-      if (
-        !message ||
-        !["user", "assistant"].includes(message.role) ||
-        typeof message.content !== "string"
-      ) {
-        continue;
-      }
-
-      const content = cleanText(message.content, 12000);
-
-      if (content) {
-        cleanMessages.push({
-          role: message.role,
-          content
-        });
-      }
-    }
-
-    if (
-      cleanMessages.length === 0 ||
-      cleanMessages[cleanMessages.length - 1].role !== "user"
-    ) {
-      return res.status(400).json({
-        success: false,
-        error: "Envoyez un message pour commencer"
-      });
-    }
-
-    /* CONVERSATION */
-
-    let conversation = null;
-    const conversationId = req.body.conversation_id;
-
-    if (conversationId) {
-      conversation = await getOwnedConversation(
-        conversationId,
-        user.id
-      );
-
-      if (!conversation) {
-        return res.status(404).json({
-          success: false,
-          error: "Conversation introuvable"
-        });
-      }
-
-    } else {
-      const firstMessage = cleanMessages
-        .filter(message => message.role === "user")
-        .at(-1);
-
-      const title = cleanText(
-        firstMessage?.content || "Nouvelle conversation",
-        80
-      );
-
-      const { data, error } = await supabase
-        .from("genius_conversations")
-        .insert({
-          user_id: user.id,
-          title: title || "Nouvelle conversation"
-        })
-        .select("*")
-        .single();
-
-      if (error) throw error;
-
-      conversation = data;
-    }
-
-    /* PERSONNALITÉ GENIUS IA V2.5.0 */
-
-    const systemPrompt = `
+const systemPrompt = `
 IDENTITÉ ET MISSION
 
 Tu es GENIUS IA 🤖, une intelligence artificielle conversationnelle
@@ -1198,7 +1208,158 @@ Sois un assistant fiable et un compagnon de conversation agréable,
 sans jamais prétendre être humain.
 `;
 
-    /* APPEL OPENROUTER */
+/* =========================================================
+   CHAT GENIUS IA V2.6.0
+   MÉMOIRE AUTOMATIQUE SUPABASE
+========================================================= */
+
+app.post("/api/chat", auth, async (req, res) => {
+  try {
+    const user = await getActiveUser(req.user.id);
+
+    if (!user) {
+      return res.status(403).json({
+        success: false,
+        error: "Votre compte est désactivé"
+      });
+    }
+
+    if (!OPENROUTER_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: "Le service IA est momentanément indisponible"
+      });
+    }
+
+    const messages = req.body.messages;
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Votre message est vide"
+      });
+    }
+
+    if (messages.length > 30) {
+      return res.status(400).json({
+        success: false,
+        error: "Trop de messages dans cette conversation"
+      });
+    }
+
+    /* NETTOYAGE DES MESSAGES */
+
+    const cleanMessages = [];
+
+    for (const message of messages) {
+      if (
+        !message ||
+        !["user", "assistant"].includes(message.role) ||
+        typeof message.content !== "string"
+      ) {
+        continue;
+      }
+
+      const content = cleanText(message.content, 12000);
+
+      if (content) {
+        cleanMessages.push({
+          role: message.role,
+          content
+        });
+      }
+    }
+
+    if (
+      cleanMessages.length === 0 ||
+      cleanMessages[cleanMessages.length - 1].role !== "user"
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Envoyez un message pour commencer"
+      });
+    }
+
+    /* =====================================================
+       IDENTIFIER OU CRÉER LA CONVERSATION
+    ===================================================== */
+
+    let conversation = null;
+    const conversationId = req.body.conversation_id;
+
+    if (conversationId) {
+      conversation = await getOwnedConversation(
+        conversationId,
+        user.id
+      );
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: "Conversation introuvable"
+        });
+      }
+
+    } else {
+      const firstMessage = cleanMessages
+        .filter(message => message.role === "user")
+        .at(-1);
+
+      const title = cleanText(
+        firstMessage?.content || "Nouvelle conversation",
+        80
+      );
+
+      const { data, error } = await supabase
+        .from("genius_conversations")
+        .insert({
+          user_id: user.id,
+          title: title || "Nouvelle conversation"
+        })
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      conversation = data;
+    }
+
+    /* =====================================================
+       RÉCUPÉRATION DE LA MÉMOIRE
+    ===================================================== */
+
+    const conversationHistory = await getConversationMemory(
+      conversation.id,
+      user.id
+    );
+
+    /*
+      Le dernier message utilisateur n'est pas encore enregistré
+      à ce stade. On l'ajoute une seule fois au contexte envoyé à l'IA.
+    */
+
+    const lastUserMessage = cleanMessages
+      .filter(message => message.role === "user")
+      .at(-1);
+
+    if (!lastUserMessage) {
+      return res.status(400).json({
+        success: false,
+        error: "Message utilisateur introuvable"
+      });
+    }
+
+    const aiMessages = [
+      ...conversationHistory,
+      {
+        role: "user",
+        content: lastUserMessage.content
+      }
+    ];
+
+    /* =====================================================
+       APPEL OPENROUTER
+    ===================================================== */
 
     const controller = new AbortController();
 
@@ -1226,7 +1387,7 @@ sans jamais prétendre être humain.
                 role: "system",
                 content: systemPrompt
               },
-              ...cleanMessages
+              ...aiMessages
             ],
             temperature: 0.8,
             max_tokens: 4000
@@ -1239,7 +1400,18 @@ sans jamais prétendre être humain.
       clearTimeout(timeout);
     }
 
-    const result = await aiResponse.json();
+    let result;
+
+    try {
+      result = await aiResponse.json();
+    } catch (error) {
+      console.error("OPENROUTER JSON ERROR:", error.message);
+
+      return res.status(502).json({
+        success: false,
+        error: "Réponse invalide du service IA"
+      });
+    }
 
     if (!aiResponse.ok) {
       console.error(
@@ -1258,15 +1430,14 @@ sans jamais prétendre être humain.
     if (!reply || typeof reply !== "string") {
       return res.status(502).json({
         success: false,
-        error: "L'intelligence artificielle n'a pas retourné de réponse"
+        error:
+          "L'intelligence artificielle n'a pas retourné de réponse"
       });
     }
 
-    /* ENREGISTREMENT DES MESSAGES */
-
-    const lastUserMessage = cleanMessages
-      .filter(message => message.role === "user")
-      .at(-1);
+    /* =====================================================
+       ENREGISTRER LES DEUX MESSAGES DANS SUPABASE
+    ===================================================== */
 
     const { error: saveError } = await supabase
       .from("genius_messages")
@@ -1287,7 +1458,9 @@ sans jamais prétendre être humain.
 
     if (saveError) throw saveError;
 
-    /* MISE À JOUR DU TITRE */
+    /* =====================================================
+       METTRE À JOUR LA CONVERSATION
+    ===================================================== */
 
     const updateData = {
       updated_at: new Date().toISOString()
@@ -1308,11 +1481,19 @@ sans jamais prétendre être humain.
 
     if (updateError) throw updateError;
 
+    /* =====================================================
+       RÉPONSE AU FRONTEND
+    ===================================================== */
+
     return res.json({
       success: true,
       reply: reply.trim(),
       model: AI_MODEL,
-      conversation_id: conversation.id
+      conversation_id: conversation.id,
+      memory: {
+        enabled: true,
+        messages_used: conversationHistory.length
+      }
     });
 
   } catch (error) {
@@ -1327,12 +1508,15 @@ sans jamais prétendre être humain.
 
     return res.status(500).json({
       success: false,
-      error: "Une erreur est survenue pendant la réponse de GENIUS IA"
+      error:
+        "Une erreur est survenue pendant la réponse de GENIUS IA"
     });
   }
 });
 
-/* ADMIN — TABLEAU DE BORD */
+/* =========================================================
+   ADMIN — TABLEAU DE BORD
+========================================================= */
 
 app.get(
   "/api/admin/dashboard",
@@ -1348,19 +1532,31 @@ app.get(
       ] = await Promise.all([
         supabase
           .from("genius_users")
-          .select("id", { count: "exact", head: true }),
+          .select("id", {
+            count: "exact",
+            head: true
+          }),
 
         supabase
           .from("genius_conversations")
-          .select("id", { count: "exact", head: true }),
+          .select("id", {
+            count: "exact",
+            head: true
+          }),
 
         supabase
           .from("genius_messages")
-          .select("id", { count: "exact", head: true }),
+          .select("id", {
+            count: "exact",
+            head: true
+          }),
 
         supabase
           .from("genius_users")
-          .select("id", { count: "exact", head: true })
+          .select("id", {
+            count: "exact",
+            head: true
+          })
           .eq("is_active", true)
       ]);
 
@@ -1370,7 +1566,9 @@ app.get(
         messagesResult.error ||
         activeUsersResult.error
       ) {
-        throw new Error("Erreur de récupération des statistiques");
+        throw new Error(
+          "Erreur de récupération des statistiques"
+        );
       }
 
       return res.json({
@@ -1379,7 +1577,8 @@ app.get(
         statistics: {
           total_users: usersResult.count || 0,
           active_users: activeUsersResult.count || 0,
-          total_conversations: conversationsResult.count || 0,
+          total_conversations:
+            conversationsResult.count || 0,
           total_messages: messagesResult.count || 0
         }
       });
@@ -1395,7 +1594,9 @@ app.get(
   }
 );
 
-/* ADMIN — LISTE DES UTILISATEURS */
+/* =========================================================
+   ADMIN — LISTE DES UTILISATEURS
+========================================================= */
 
 app.get(
   "/api/admin/users",
@@ -1443,7 +1644,9 @@ app.get(
   }
 );
 
-/* ADMIN — ACTIVER OU DÉSACTIVER UN COMPTE */
+/* =========================================================
+   ADMIN — ACTIVER OU DÉSACTIVER UN COMPTE
+========================================================= */
 
 app.put(
   "/api/admin/users/:id/status",
@@ -1464,15 +1667,17 @@ app.put(
       if (targetId === req.admin.id) {
         return res.status(400).json({
           success: false,
-          error: "Vous ne pouvez pas désactiver votre propre compte"
+          error:
+            "Vous ne pouvez pas désactiver votre propre compte"
         });
       }
 
-      const { data: target, error: targetError } = await supabase
-        .from("genius_users")
-        .select("id, role")
-        .eq("id", targetId)
-        .maybeSingle();
+      const { data: target, error: targetError } =
+        await supabase
+          .from("genius_users")
+          .select("id, role")
+          .eq("id", targetId)
+          .maybeSingle();
 
       if (targetError) throw targetError;
 
@@ -1486,7 +1691,8 @@ app.put(
       if (target.role === "admin") {
         return res.status(403).json({
           success: false,
-          error: "Modification d'un compte administrateur interdite"
+          error:
+            "Modification d'un compte administrateur interdite"
         });
       }
 
@@ -1517,7 +1723,9 @@ app.put(
   }
 );
 
-/* ROUTE INCONNUE */
+/* =========================================================
+   ROUTE INCONNUE
+========================================================= */
 
 app.use((req, res) => {
   res.status(404).json({
@@ -1527,7 +1735,9 @@ app.use((req, res) => {
   });
 });
 
-/* GESTION DES ERREURS */
+/* =========================================================
+   GESTION DES ERREURS
+========================================================= */
 
 app.use((error, req, res, next) => {
   console.error("SERVER ERROR:", error.message);
@@ -1542,12 +1752,15 @@ app.use((error, req, res, next) => {
   });
 });
 
-/* DÉMARRAGE */
+/* =========================================================
+   DÉMARRAGE
+========================================================= */
 
 app.listen(PORT, () => {
   console.log("-----------------------------------");
   console.log("GENIUS IA V" + VERSION);
   console.log("Créateur : MARUCE SOLDADO 🇬🇳");
+  console.log("Mémoire automatique : ACTIVÉE");
   console.log("Serveur opérationnel");
   console.log("Port :", PORT);
   console.log("-----------------------------------");
