@@ -6,16 +6,127 @@
 <meta name="theme-color" content="#080d18">
 
 <title>GENIUS IA 🤖 | Le futur commence avec nous</title>
-
 <meta name="description" content="GENIUS IA, votre intelligence artificielle nouvelle génération.">
 
 <link rel="stylesheet" href="style.css">
-
 </head>
 
 <body>
 
-<div class="app">
+<!-- AUTHENTIFICATION -->
+
+<div id="authScreen" class="auth-screen">
+
+    <div class="auth-card">
+
+        <div class="auth-logo">G</div>
+
+        <h1>GENIUS <span>IA</span></h1>
+        <p class="auth-subtitle">Le futur commence avec nous.</p>
+
+        <div class="auth-tabs">
+            <button id="loginTab" class="auth-tab active" type="button">
+                Connexion
+            </button>
+
+            <button id="registerTab" class="auth-tab" type="button">
+                Inscription
+            </button>
+        </div>
+
+        <form id="loginForm">
+
+            <h2>Bon retour parmi nous</h2>
+            <p>Connectez-vous à votre compte GENIUS IA.</p>
+
+            <label>Numéro de téléphone</label>
+            <input
+                type="tel"
+                id="loginPhone"
+                placeholder="+224XXXXXXXXX"
+                autocomplete="tel"
+                required
+            >
+
+            <label>Mot de passe</label>
+            <input
+                type="password"
+                id="loginPassword"
+                placeholder="Votre mot de passe"
+                autocomplete="current-password"
+                required
+            >
+
+            <button type="submit" class="auth-submit">
+                Se connecter
+            </button>
+
+        </form>
+
+        <form id="registerForm" hidden>
+
+            <h2>Créer un compte</h2>
+            <p>Rejoignez la communauté GENIUS IA.</p>
+
+            <label>Nom complet</label>
+            <input
+                type="text"
+                id="registerName"
+                placeholder="Votre nom complet"
+                autocomplete="name"
+                maxlength="100"
+                required
+            >
+
+            <label>Pays</label>
+            <input
+                type="text"
+                id="registerCountry"
+                placeholder="Votre pays"
+                autocomplete="country-name"
+                required
+            >
+
+            <label>Numéro de téléphone</label>
+            <input
+                type="tel"
+                id="registerPhone"
+                placeholder="+224XXXXXXXXX"
+                autocomplete="tel"
+                required
+            >
+
+            <label>Mot de passe</label>
+            <input
+                type="password"
+                id="registerPassword"
+                placeholder="Minimum 8 caractères"
+                minlength="8"
+                maxlength="128"
+                autocomplete="new-password"
+                required
+            >
+
+            <button type="submit" class="auth-submit">
+                Créer mon compte
+            </button>
+
+        </form>
+
+        <div id="authMessage" class="auth-message" role="status"></div>
+
+        <div class="auth-footer">
+            🌍 Une communauté internationale
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- APPLICATION -->
+
+<div class="app" id="mainApp" hidden>
 
     <!-- SIDEBAR -->
 
@@ -68,12 +179,16 @@
             </button>
 
             <div class="user-profile">
-                <div class="avatar">M</div>
+                <div class="avatar" id="userAvatar">G</div>
                 <div>
-                    <strong>Utilisateur</strong>
-                    <small>Compte GENIUS IA</small>
+                    <strong id="userName">Utilisateur</strong>
+                    <small id="userPhone">Compte GENIUS IA</small>
                 </div>
             </div>
+
+            <button class="nav-item logout-button" id="logoutButton">
+                <span>⇥</span> Déconnexion
+            </button>
 
         </div>
 
@@ -86,16 +201,14 @@
 
         <header class="topbar">
 
-            <button class="mobile-menu" id="mobileMenu">
-                ☰
-            </button>
+            <button class="mobile-menu" id="mobileMenu">☰</button>
 
             <div class="top-title">
                 <span class="status-dot"></span>
                 GENIUS IA <small>ONLINE</small>
             </div>
 
-            <button class="profile-button">
+            <button class="profile-button" id="profileButton">
                 👤
             </button>
 
@@ -199,9 +312,7 @@
                         <span>Votre assistant intelligent</span>
                     </div>
 
-                    <button class="send-button" id="sendButton">
-                        ↑
-                    </button>
+                    <button class="send-button" id="sendButton">↑</button>
 
                 </div>
 
@@ -217,7 +328,6 @@
     </main>
 
 </div>
-
 
 <script src="app.js"></script>
 
