@@ -1268,3 +1268,76 @@ button:active:not(:disabled) {
         padding: 23px 16px;
     }
 }
+/* =================================
+   GENIUS IA — THÈME NOIR
+================================= */
+
+:root {
+    --bg: #000000;
+    --panel: #0a0a0a;
+    --panel2: #111111;
+    --blue: #2585ff;
+    --cyan: #00c8ff;
+    --white: #ffffff;
+}
+
+html,
+body {
+    background: #000000 !important;
+    color: #ffffff !important;
+}
+
+body,
+#app,
+.app,
+.main,
+.main-content,
+.content,
+.page,
+.chat-container,
+.sidebar,
+header,
+.navigation {
+    background-color: #000000 !important;
+    color: #ffffff;
+}
+
+.card,
+.panel,
+.modal,
+.settings-panel,
+.history-panel,
+.tool-card,
+.profile-card,
+.admin-card {
+    background-color: #0a0a0a !important;
+    color: #ffffff !important;
+    border-color: #202020 !important;
+}
+
+input,
+textarea,
+select {
+    background-color: #111111 !important;
+    color: #ffffff !important;
+    border: 1px solid #303030 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #999999 !important;
+}
+
+button,
+.btn,
+.primary-button {
+    background: linear-gradient(135deg, #2585ff, #00c8ff);
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+}
+
+button:hover,
+.btn:hover {
+    filter: brightness(1.15);
+}
