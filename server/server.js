@@ -1,9 +1,12 @@
 "use strict";
 
-/* =========================================
-   GENIUS IA — BACKEND V2.1
+/* =========================================================
+   GENIUS IA — BACKEND V2.2.0
    Créateur : MARUCE SOLDADO 🇬🇳
-   ========================================= */
+   Slogan : Le futur commence avec nous.
+========================================================= */
+
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
@@ -15,11 +18,11 @@ const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
 
-/* =========================================
-   CONFIGURATION
-   ========================================= */
+const VERSION = "2.2.0";
 
-app.set("trust proxy", 1);
+/* =========================================================
+   CONFIGURATION
+========================================================= */
 
 const PORT = process.env.PORT || 3000;
 
@@ -27,7 +30,9 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const AI_MODEL = process.env.AI_MODEL || "openai/gpt-4o-mini";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
+const SUPABASE_SECRET_KEY =
+  process.env.SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -36,70 +41,92 @@ const FRONTEND_URL =
   "https://marucesoldado752-ux.github.io";
 
 if (!OPENROUTER_API_KEY) {
-  throw new Error("OPENROUTER_API_KEY manquante");
+  console.error("ERREUR : OPENROUTER_API_KEY manquante");
 }
 
 if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
-  throw new Error("Configuration Supabase manquante");
+  console.error("ERREUR : configuration Supabase manquante");
 }
 
-if (!JWT_SECRET || JWT_SECRET.length < 64) {
-  throw new Error("JWT_SECRET doit contenir au moins 64 caractères");
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  console.error("ERREUR : JWT_SECRET absent ou trop court");
 }
 
-/* =========================================
+/* =========================================================
    SUPABASE
-   ========================================= */
+========================================================= */
 
 const supabase = createClient(
   SUPABASE_URL,
   SUPABASE_SECRET_KEY,
   {
     auth: {
-      persistSession: false,
-      autoRefreshToken: false
+      autoRefreshToken: false,
+      persistSession: false
     }
   }
 );
 
-/* =========================================
-   SÉCURITÉ ET MIDDLEWARES
-   ========================================= */
+/* =========================================================
+   MIDDLEWARES
+========================================================= */
 
-app.disable("x-powered-by");
+app.set("trust proxy", 1);
 
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: false
+}));
 
 app.use(cors({
   origin: [
     FRONTEND_URL,
-    "https://marucesoldado752-ux.github.io"
+    "https://marucesoldado752-ux.github.io",
+    "https://genius-ia-sand.vercel.app"
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization"
+  ]
 }));
 
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({
+  limit: "2mb"
+}));
 
-const limiter = rateLimit({
+app.use(express.urlencoded({
+  extended: true,
+  limit: "2mb"
+}));
+
+const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 30,
+  limit: 40,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: {
     success: false,
-    error: "Trop de requêtes. Réessaie dans une minute."
+    error: "Trop de demandes. Réessayez dans une minute."
   }
 });
 
-app.use("/api", limiter);
+app.use("/api", apiLimiter);
 
-/* =========================================
+/* =========================================================
    OUTILS
-   ========================================= */
+========================================================= */
+
+function cleanText(value, maxLength = 500) {
+  if (typeof value !== "string") return "";
+
+  return value
+    .trim()
+    .replace(/\u0000/g, "")
+    .slice(0, maxLength);
+}
 
 function normalizePhone(phone) {
-  return String(phone || "").replace(/[^\d+]/g, "");
+  return cleanText(phone, 30).replace(/[\s()-]/g, "");
 }
 
 function createToken(user) {
@@ -110,52 +137,79 @@ function createToken(user) {
       role: user.role
     },
     JWT_SECRET,
-    { expiresIn: "7d" }
+    {
+      expiresIn: "30d"
+    }
   );
 }
 
+function safeUser(user) {
+  return {
+    id: user.id,
+    full_name: user.full_name,
+    country: user.country,
+    phone: user.phone,
+    role: user.role,
+    created_at: user.created_at
+  };
+}
+
+/* =========================================================
+   AUTHENTIFICATION
+========================================================= */
+
 function auth(req, res, next) {
-  const header = req.headers.authorization;
-
-  if (!header || !header.startsWith("Bearer ")) {
-    return res.status(401).json({
-      success: false,
-      error: "Connexion requise"
-    });
-  }
-
   try {
-    req.user = jwt.verify(
-      header.substring(7),
-      JWT_SECRET
-    );
+    const header = req.headers.authorization;
+
+    if (!header || !header.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        error: "Connexion obligatoire"
+      });
+    }
+
+    const token = header.slice(7);
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    if (!decoded.id) {
+      return res.status(401).json({
+        success: false,
+        error: "Session invalide"
+      });
+    }
+
+    req.user = decoded;
 
     next();
-  } catch {
+
+  } catch (error) {
     return res.status(401).json({
       success: false,
-      error: "Session invalide ou expirée"
+      error: "Session expirée ou invalide"
     });
   }
 }
 
-/* =========================================
-   PAGE D'ACCUEIL
-   ========================================= */
+/* =========================================================
+   ROUTE ACCUEIL
+========================================================= */
 
 app.get("/", (req, res) => {
   res.json({
     success: true,
     application: "GENIUS IA",
     creator: "MARUCE SOLDADO",
-    version: "2.1.0",
-    status: "online"
+    slogan: "Le futur commence avec nous.",
+    version: VERSION,
+    server: "online"
   });
 });
 
-/* =========================================
-   ÉTAT DU SERVEUR
-   ========================================= */
+/* =========================================================
+   HEALTH CHECK
+========================================================= */
 
 app.get("/health", (req, res) => {
   res.json({
@@ -165,28 +219,40 @@ app.get("/health", (req, res) => {
     databaseConfigured: Boolean(
       SUPABASE_URL && SUPABASE_SECRET_KEY
     ),
-    version: "2.1.0"
+    version: VERSION
   });
 });
 
-/* =========================================
+/* =========================================================
    INSCRIPTION
-   ========================================= */
+========================================================= */
 
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { phone, password, full_name, country } = req.body;
+    const full_name = cleanText(req.body.full_name, 100);
+    const country = cleanText(req.body.country, 80);
+    const phone = normalizePhone(req.body.phone);
+    const password = req.body.password;
 
-    const normalizedPhone = normalizePhone(phone);
+    if (!full_name || !country || !phone || !password) {
+      return res.status(400).json({
+        success: false,
+        error: "Tous les champs sont obligatoires"
+      });
+    }
 
-    if (!normalizedPhone || normalizedPhone.length < 8) {
+    if (!/^\+?[0-9]{8,20}$/.test(phone)) {
       return res.status(400).json({
         success: false,
         error: "Numéro de téléphone invalide"
       });
     }
 
-    if (!password || password.length < 8 || password.length > 128) {
+    if (
+      typeof password !== "string" ||
+      password.length < 8 ||
+      password.length > 128
+    ) {
       return res.status(400).json({
         success: false,
         error: "Le mot de passe doit contenir entre 8 et 128 caractères"
@@ -197,7 +263,7 @@ app.post("/api/auth/register", async (req, res) => {
       await supabase
         .from("genius_users")
         .select("id")
-        .eq("phone", normalizedPhone)
+        .eq("phone", phone)
         .maybeSingle();
 
     if (searchError) throw searchError;
@@ -209,30 +275,42 @@ app.post("/api/auth/register", async (req, res) => {
       });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const password_hash = await bcrypt.hash(password, 12);
 
-    const { data: user, error } = await supabase
-      .from("genius_users")
-      .insert({
-        phone: normalizedPhone,
-        password_hash: passwordHash,
-        full_name: String(full_name || "").trim().slice(0, 100),
-        country: String(country || "").trim().slice(0, 80),
-        role: "user",
-        is_active: true
-      })
-      .select("id, phone, full_name, country, role")
-      .single();
+    const { data: newUser, error: insertError } =
+      await supabase
+        .from("genius_users")
+        .insert({
+          full_name,
+          country,
+          phone,
+          password_hash,
+          role: "user",
+          is_active: true
+        })
+        .select(
+          "id, full_name, country, phone, role, created_at"
+        )
+        .single();
 
-    if (error) throw error;
+    if (insertError) {
+      if (insertError.code === "23505") {
+        return res.status(409).json({
+          success: false,
+          error: "Ce numéro possède déjà un compte"
+        });
+      }
 
-    const token = createToken(user);
+      throw insertError;
+    }
+
+    const token = createToken(newUser);
 
     return res.status(201).json({
       success: true,
       message: "Compte créé avec succès",
       token,
-      user
+      user: safeUser(newUser)
     });
 
   } catch (error) {
@@ -245,17 +323,16 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-/* =========================================
+/* =========================================================
    CONNEXION
-   ========================================= */
+========================================================= */
 
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const { phone, password } = req.body;
+    const phone = normalizePhone(req.body.phone);
+    const password = req.body.password;
 
-    const normalizedPhone = normalizePhone(phone);
-
-    if (!normalizedPhone || !password) {
+    if (!phone || !password) {
       return res.status(400).json({
         success: false,
         error: "Numéro et mot de passe obligatoires"
@@ -265,27 +342,34 @@ app.post("/api/auth/login", async (req, res) => {
     const { data: user, error } = await supabase
       .from("genius_users")
       .select("*")
-      .eq("phone", normalizedPhone)
+      .eq("phone", phone)
       .maybeSingle();
 
     if (error) throw error;
 
-    if (!user || !user.is_active) {
+    if (!user) {
       return res.status(401).json({
         success: false,
-        error: "Identifiants incorrects"
+        error: "Numéro ou mot de passe incorrect"
       });
     }
 
-    const validPassword = await bcrypt.compare(
+    if (!user.is_active) {
+      return res.status(403).json({
+        success: false,
+        error: "Votre compte est désactivé"
+      });
+    }
+
+    const passwordCorrect = await bcrypt.compare(
       password,
       user.password_hash
     );
 
-    if (!validPassword) {
+    if (!passwordCorrect) {
       return res.status(401).json({
         success: false,
-        error: "Identifiants incorrects"
+        error: "Numéro ou mot de passe incorrect"
       });
     }
 
@@ -295,13 +379,7 @@ app.post("/api/auth/login", async (req, res) => {
       success: true,
       message: "Connexion réussie",
       token,
-      user: {
-        id: user.id,
-        phone: user.phone,
-        full_name: user.full_name,
-        country: user.country,
-        role: user.role
-      }
+      user: safeUser(user)
     });
 
   } catch (error) {
@@ -309,35 +387,37 @@ app.post("/api/auth/login", async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: "Erreur pendant la connexion"
+      error: "Impossible de se connecter"
     });
   }
 });
 
-/* =========================================
+/* =========================================================
    PROFIL UTILISATEUR
-   ========================================= */
+========================================================= */
 
 app.get("/api/auth/me", auth, async (req, res) => {
   try {
     const { data: user, error } = await supabase
       .from("genius_users")
-      .select("id, phone, full_name, country, role, created_at")
+      .select(
+        "id, full_name, country, phone, role, is_active, created_at"
+      )
       .eq("id", req.user.id)
       .maybeSingle();
 
     if (error) throw error;
 
-    if (!user || user.role !== req.user.role) {
-      return res.status(401).json({
+    if (!user || !user.is_active) {
+      return res.status(403).json({
         success: false,
-        error: "Compte invalide"
+        error: "Compte introuvable ou désactivé"
       });
     }
 
     return res.json({
       success: true,
-      user
+      user: safeUser(user)
     });
 
   } catch (error) {
@@ -350,119 +430,236 @@ app.get("/api/auth/me", auth, async (req, res) => {
   }
 });
 
-/* =========================================
-   INTELLIGENCE ARTIFICIELLE
-   ========================================= */
+/* =========================================================
+   CHAT GENIUS IA — ROUTE PROTÉGÉE
+========================================================= */
 
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", auth, async (req, res) => {
   try {
+    /* Vérifier que le compte existe et reste actif */
+
+    const { data: user, error: userError } = await supabase
+      .from("genius_users")
+      .select("id, is_active")
+      .eq("id", req.user.id)
+      .maybeSingle();
+
+    if (userError) throw userError;
+
+    if (!user || !user.is_active) {
+      return res.status(403).json({
+        success: false,
+        error: "Votre compte est désactivé"
+      });
+    }
+
+    if (!OPENROUTER_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: "Le service IA est momentanément indisponible"
+      });
+    }
+
     const messages = req.body.messages;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({
         success: false,
-        error: "Aucun message fourni"
+        error: "Votre message est vide"
       });
     }
 
-    const safeMessages = messages
-      .filter(message =>
-        message &&
-        ["user", "assistant"].includes(message.role) &&
-        typeof message.content === "string"
-      )
-      .slice(-30)
-      .map(message => ({
-        role: message.role,
-        content: message.content.slice(0, 12000)
-      }));
-
-    if (!safeMessages.length) {
+    if (messages.length > 30) {
       return res.status(400).json({
         success: false,
-        error: "Messages invalides"
+        error: "Trop de messages dans cette conversation"
       });
     }
 
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://marucesoldado752-ux.github.io/genius-ia/",
-          "X-Title": "GENIUS IA"
-        },
-        body: JSON.stringify({
-          model: AI_MODEL,
-          messages: [
-            {
-              role: "system",
-              content:
-                "Tu es GENIUS IA, une intelligence artificielle internationale créée par MARUCE SOLDADO en Guinée. Tu aides les utilisateurs à apprendre, travailler, rédiger, traduire, programmer et comprendre. Réponds clairement, précisément et dans la langue de l'utilisateur."
-            },
-            ...safeMessages
-          ],
-          max_tokens: 4000,
-          temperature: 0.7
-        }),
-        signal: AbortSignal.timeout(110000)
+    const allowedRoles = ["user", "assistant"];
+
+    const cleanMessages = [];
+
+    for (const message of messages) {
+      if (
+        !message ||
+        !allowedRoles.includes(message.role) ||
+        typeof message.content !== "string"
+      ) {
+        continue;
       }
-    );
 
-    const result = await response.json();
+      const content = cleanText(message.content, 12000);
 
-    if (!response.ok) {
-      console.error("OPENROUTER ERROR:", response.status);
+      if (content) {
+        cleanMessages.push({
+          role: message.role,
+          content
+        });
+      }
+    }
 
-      return res.status(502).json({
+    if (
+      cleanMessages.length === 0 ||
+      cleanMessages[cleanMessages.length - 1].role !== "user"
+    ) {
+      return res.status(400).json({
         success: false,
-        error: "Le service IA est temporairement indisponible"
+        error: "Envoyez un message pour commencer"
       });
     }
 
-    const answer = result.choices?.[0]?.message?.content;
+    const systemPrompt = `
+Tu es GENIUS IA 🤖, une intelligence artificielle internationale.
 
-    if (!answer) {
+Créateur : MARUCE SOLDADO 🇬🇳
+Slogan : Le futur commence avec nous.
+
+Ta mission :
+- Répondre clairement et rapidement.
+- Aider à apprendre et à travailler.
+- Rédiger et corriger des textes.
+- Traduire dans plusieurs langues.
+- Programmer et expliquer le code.
+- Aider à comprendre les documents.
+- Donner des explications utiles et précises.
+- Accompagner les utilisateurs dans leurs projets.
+
+Règles :
+- Réponds dans la langue de l'utilisateur.
+- Sois naturel, professionnel et utile.
+- Évite les longues introductions inutiles.
+- Ne prétends pas avoir effectué une action que tu n'as pas réalisée.
+- Si tu ne connais pas une réponse, dis-le honnêtement.
+- Respecte les utilisateurs.
+`;
+
+    const controller = new AbortController();
+
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 110000);
+
+    let aiResponse;
+
+    try {
+      aiResponse = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": FRONTEND_URL,
+            "X-Title": "GENIUS IA"
+          },
+          body: JSON.stringify({
+            model: AI_MODEL,
+            messages: [
+              {
+                role: "system",
+                content: systemPrompt
+              },
+              ...cleanMessages
+            ],
+            temperature: 0.7,
+            max_tokens: 4000
+          }),
+          signal: controller.signal
+        }
+      );
+
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const result = await aiResponse.json();
+
+    if (!aiResponse.ok) {
+      console.error(
+        "OPENROUTER ERROR:",
+        result.error?.message || aiResponse.status
+      );
+
       return res.status(502).json({
         success: false,
-        error: "Aucune réponse de l'intelligence artificielle"
+        error: "Le service IA n'a pas pu répondre. Réessayez."
+      });
+    }
+
+    const reply =
+      result.choices?.[0]?.message?.content;
+
+    if (!reply || typeof reply !== "string") {
+      return res.status(502).json({
+        success: false,
+        error: "L'intelligence artificielle n'a pas retourné de réponse"
       });
     }
 
     return res.json({
       success: true,
-      application: "GENIUS IA",
-      reply: answer,
-      model: result.model || AI_MODEL
+      reply: reply.trim(),
+      model: AI_MODEL
     });
 
   } catch (error) {
     console.error("CHAT ERROR:", error.message);
 
+    if (error.name === "AbortError") {
+      return res.status(504).json({
+        success: false,
+        error: "Le délai de réponse est dépassé. Réessayez."
+      });
+    }
+
     return res.status(500).json({
       success: false,
-      error: "Une erreur est survenue pendant la réponse IA"
+      error: "Une erreur est survenue pendant la réponse de GENIUS IA"
     });
   }
 });
 
-/* =========================================
-   ROUTES INCONNUES
-   ========================================= */
+/* =========================================================
+   ROUTE INCONNUE
+========================================================= */
 
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    error: "Route introuvable"
+    error: "Route introuvable",
+    path: req.originalUrl
   });
 });
 
-/* =========================================
+/* =========================================================
+   GESTION DES ERREURS
+========================================================= */
+
+app.use((error, req, res, next) => {
+  console.error("SERVER ERROR:", error.message);
+
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  res.status(500).json({
+    success: false,
+    error: "Erreur interne du serveur"
+  });
+});
+
+/* =========================================================
    DÉMARRAGE
-   ========================================= */
+========================================================= */
 
 app.listen(PORT, () => {
-  console.log(`GENIUS IA V2.1 opérationnel sur le port ${PORT}`);
+  console.log("-----------------------------------");
+  console.log("GENIUS IA V" + VERSION);
+  console.log("Créateur : MARUCE SOLDADO 🇬🇳");
+  console.log("Serveur opérationnel");
+  console.log("Port :", PORT);
+  console.log("-----------------------------------");
 });
+
+module.exports = app;
