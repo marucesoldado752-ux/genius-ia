@@ -3200,3 +3200,496 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
 });
+/* =========================================================
+   GENIUS IA V2.5 — CHAT INTELLIGENT
+========================================================= */
+
+(function geniusChatV25() {
+
+    "use strict";
+
+    /* STYLE DU CHAT */
+
+    const style = document.createElement("style");
+
+    style.id = "genius-v25-chat-styles";
+
+    style.textContent = `
+
+        #messages {
+            background: #000000 !important;
+        }
+
+        .user-message,
+        .assistant-message {
+            margin: 20px 0;
+            animation: geniusMessageIn .3s ease;
+        }
+
+        .user-message .message-content,
+        .assistant-message .message-content {
+            background: #0c1422;
+            border: 1px solid #1c2b40;
+            border-radius: 15px;
+            padding: 16px;
+            color: #ffffff;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+        }
+
+        .user-message .message-content {
+            background: #10233c;
+            border-color: #2585ff;
+        }
+
+        .message-content strong {
+            display: block;
+            color: #36a0ff;
+            margin-bottom: 10px;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .message-content p {
+            color: #ffffff;
+            line-height: 1.8;
+            margin: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .genius-message-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .genius-message-actions button {
+            background: #101d30;
+            color: #b9d5f5;
+            border: 1px solid #263d5c;
+            border-radius: 8px;
+            padding: 7px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: .2s;
+        }
+
+        .genius-message-actions button:hover {
+            background: #2585ff;
+            color: white;
+            border-color: #2585ff;
+        }
+
+        .genius-message-actions button:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .genius-code-block {
+            background: #050a12;
+            border: 1px solid #263d5c;
+            border-radius: 10px;
+            padding: 14px;
+            overflow-x: auto;
+            margin: 12px 0;
+            color: #80d5ff;
+            white-space: pre;
+        }
+
+        .genius-thinking-dots {
+            display: flex;
+            gap: 5px;
+            padding: 10px 0;
+        }
+
+        .genius-thinking-dots span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #2585ff;
+            animation: geniusThinking 1s infinite ease-in-out;
+        }
+
+        .genius-thinking-dots span:nth-child(2) {
+            animation-delay: .15s;
+        }
+
+        .genius-thinking-dots span:nth-child(3) {
+            animation-delay: .3s;
+        }
+
+        @keyframes geniusThinking {
+            0%, 80%, 100% {
+                transform: translateY(0);
+                opacity: .4;
+            }
+            40% {
+                transform: translateY(-7px);
+                opacity: 1;
+            }
+        }
+
+        @keyframes geniusMessageIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media(max-width:650px) {
+            .genius-message-actions button {
+                padding: 8px 10px;
+            }
+
+            .message-content {
+                max-width: 100%;
+            }
+        }
+
+    `;
+
+    document.head.appendChild(style);
+
+
+    /* FORMATAGE DES RÉPONSES */
+
+    function formatGeniusAnswer(text) {
+
+        const container = document.createElement("div");
+
+        const source = String(text ?? "");
+
+        // Utilise Markdown si les bibliothèques sont disponibles.
+        if (
+            typeof marked !== "undefined" &&
+            typeof DOMPurify !== "undefined"
+        ) {
+
+            container.innerHTML = DOMPurify.sanitize(
+                marked.parse(source)
+            );
+
+            container.querySelectorAll("pre code").forEach(code => {
+
+                code.parentElement.classList.add("genius-code-block");
+
+            });
+
+        } else {
+
+            container.style.whiteSpace = "pre-wrap";
+            container.textContent = source;
+
+        }
+
+        return container;
+
+    }
+
+
+    /* COPIER UNE RÉPONSE */
+
+    async function copyGeniusAnswer(text, button) {
+
+        try {
+
+            await navigator.clipboard.writeText(text);
+
+            button.textContent = "✓ Copié";
+
+            setTimeout(() => {
+
+                button.textContent = "📋 Copier";
+
+            }, 1800);
+
+        } catch (error) {
+
+            const textarea = document.createElement("textarea");
+
+            textarea.value = text;
+
+            document.body.appendChild(textarea);
+
+            textarea.select();
+
+            document.execCommand("copy");
+
+            textarea.remove();
+
+            button.textContent = "✓ Copié";
+
+        }
+
+    }
+
+
+    /* RÉGÉNÉRER LA DERNIÈRE RÉPONSE */
+
+    async function regenerateGeniusAnswer() {
+
+        if (isSending || !activeConversation) return;
+
+        const conversation = conversations.find(
+            item => item.id === activeConversation
+        );
+
+        if (!conversation || !Array.isArray(conversation.messages)) {
+            return;
+        }
+
+        const lastAssistantIndex = conversation.messages
+            .map(message => message.role)
+            .lastIndexOf("assistant");
+
+        if (lastAssistantIndex === -1) return;
+
+        const lastUserIndex = conversation.messages
+            .map(message => message.role)
+            .lastIndexOf("user");
+
+        if (
+            lastUserIndex === -1 ||
+            lastUserIndex > lastAssistantIndex
+        ) {
+            return;
+        }
+
+        if (!confirm("Voulez-vous générer une nouvelle réponse ?")) {
+            return;
+        }
+
+        // Retire uniquement l'ancienne réponse de l'affichage local.
+        conversation.messages.splice(lastAssistantIndex, 1);
+
+        renderConversation(activeConversation);
+
+        isSending = true;
+
+        if (sendButton) sendButton.disabled = true;
+        if (userInput) userInput.disabled = true;
+
+        showThinking();
+
+        try {
+
+            const messageHistory = conversation.messages
+                .filter(message =>
+                    ["user", "assistant"].includes(message.role)
+                )
+                .slice(-30)
+                .map(message => ({
+                    role: message.role,
+                    content: message.content
+                }));
+
+            const result = await askGeniusAI(
+                messageHistory,
+                conversation.isLocal ? null : conversation.id
+            );
+
+            removeThinking();
+
+            conversation.messages.push({
+
+                role: "assistant",
+
+                content: result.reply,
+
+                createdAt: new Date().toISOString()
+
+            });
+
+            conversation.updatedAt = new Date().toISOString();
+
+            renderConversation(activeConversation);
+
+            saveConversations();
+
+        } catch (error) {
+
+            removeThinking();
+
+            alert("Impossible de régénérer la réponse : " + error.message);
+
+        } finally {
+
+            isSending = false;
+
+            if (sendButton) sendButton.disabled = false;
+            if (userInput) userInput.disabled = false;
+
+        }
+
+    }
+
+
+    /* REMPLACEMENT DE L'AFFICHAGE DES MESSAGES */
+
+    displayMessage = function(role, content) {
+
+        if (!messages) return null;
+
+        const wrapper = document.createElement("div");
+
+        wrapper.className = role === "user"
+            ? "user-message"
+            : "assistant-message";
+
+        const avatar = document.createElement("div");
+
+        avatar.className = role === "user"
+            ? "message-avatar user-avatar"
+            : "message-avatar";
+
+        avatar.textContent = role === "user" ? "U" : "G";
+
+        const messageContent = document.createElement("div");
+
+        messageContent.className = "message-content";
+
+        const name = document.createElement("strong");
+
+        name.textContent = role === "user" ? "VOUS" : APP_NAME;
+
+        messageContent.appendChild(name);
+
+        const formatted = role === "assistant"
+            ? formatGeniusAnswer(content)
+            : document.createTextNode(String(content ?? ""));
+
+        if (role === "assistant") {
+
+            messageContent.appendChild(formatted);
+
+        } else {
+
+            const paragraph = document.createElement("p");
+
+            paragraph.textContent = String(content ?? "");
+
+            messageContent.appendChild(paragraph);
+
+        }
+
+        wrapper.appendChild(avatar);
+
+        wrapper.appendChild(messageContent);
+
+        if (role === "assistant") {
+
+            const actions = document.createElement("div");
+
+            actions.className = "genius-message-actions";
+
+            const copyButton = document.createElement("button");
+
+            copyButton.textContent = "📋 Copier";
+
+            copyButton.addEventListener("click", () => {
+
+                copyGeniusAnswer(String(content ?? ""), copyButton);
+
+            });
+
+            actions.appendChild(copyButton);
+
+            const conversation = conversations.find(
+                item => item.id === activeConversation
+            );
+
+            const hasUserMessage = conversation?.messages?.some(
+                message => message.role === "user"
+            );
+
+            if (hasUserMessage) {
+
+                const regenerateButton = document.createElement("button");
+
+                regenerateButton.textContent = "🔄 Régénérer";
+
+                regenerateButton.addEventListener("click", () => {
+
+                    regenerateGeniusAnswer();
+
+                });
+
+                actions.appendChild(regenerateButton);
+
+            }
+
+            messageContent.appendChild(actions);
+
+        }
+
+        messages.appendChild(wrapper);
+
+        scrollToBottom();
+
+        return wrapper;
+
+    };
+
+
+    /* NOUVEL INDICATEUR DE RÉFLEXION */
+
+    showThinking = function() {
+
+        if (!messages) return;
+
+        removeThinking();
+
+        const wrapper = document.createElement("div");
+
+        wrapper.className = "assistant-message";
+
+        wrapper.id = "genius-thinking";
+
+        const avatar = document.createElement("div");
+
+        avatar.className = "message-avatar";
+
+        avatar.textContent = "G";
+
+        const content = document.createElement("div");
+
+        content.className = "message-content";
+
+        const name = document.createElement("strong");
+
+        name.textContent = APP_NAME;
+
+        const label = document.createElement("p");
+
+        label.textContent = "Je réfléchis à votre demande";
+
+        const dots = document.createElement("div");
+
+        dots.className = "genius-thinking-dots";
+
+        dots.innerHTML = "<span></span><span></span><span></span>";
+
+        content.appendChild(name);
+
+        content.appendChild(label);
+
+        content.appendChild(dots);
+
+        wrapper.appendChild(avatar);
+
+        wrapper.appendChild(content);
+
+        messages.appendChild(wrapper);
+
+        scrollToBottom();
+
+    };
+
+    console.log("GENIUS IA V2.5 — Chat intelligent activé.");
+
+})();
