@@ -8,9 +8,7 @@
 <meta name="description" content="GENIUS IA, votre intelligence artificielle nouvelle génération.">
 <meta name="author" content="MARUCE SOLDADO">
 <link rel="stylesheet" href="style.css">
-</head><script src="script.js"></script>
-</body>
-</html>
+</head>
 <body>
 <!-- =========================================
      AUTHENTIFICATION
@@ -19,19 +17,32 @@
 <div class="auth-card">
     <div class="auth-logo">G</div>
     <h1>GENIUS <span>IA</span></h1>
-    <p class="auth-subtitle">Le futur commence avec nous.</p>
+    <p class="auth-subtitle">
+        Le futur commence avec nous.
+    </p>
     <div class="auth-tabs">
-        <button id="loginTab" class="auth-tab active" type="button">
+        <button
+            id="loginTab"
+            class="auth-tab active"
+            type="button"
+        >
             Connexion
         </button>
-        <button id="registerTab" class="auth-tab" type="button">
+        <button
+            id="registerTab"
+            class="auth-tab"
+            type="button"
+        >
             Inscription
         </button>
     </div>
+    <!-- CONNEXION -->
     <form id="loginForm">
         <h2>Bon retour parmi nous</h2>
         <p>Connectez-vous à votre compte GENIUS IA.</p>
-        <label for="loginPhone">Numéro de téléphone</label>
+        <label for="loginPhone">
+            Numéro de téléphone
+        </label>
         <input
             type="tel"
             id="loginPhone"
@@ -39,7 +50,9 @@
             autocomplete="tel"
             required
         >
-        <label for="loginPassword">Mot de passe</label>
+        <label for="loginPassword">
+            Mot de passe
+        </label>
         <input
             type="password"
             id="loginPassword"
@@ -51,10 +64,13 @@
             Se connecter
         </button>
     </form>
+    <!-- INSCRIPTION -->
     <form id="registerForm" hidden>
         <h2>Créer un compte</h2>
         <p>Rejoignez la communauté GENIUS IA.</p>
-        <label for="registerName">Nom complet</label>
+        <label for="registerName">
+            Nom complet
+        </label>
         <input
             type="text"
             id="registerName"
@@ -63,7 +79,9 @@
             maxlength="100"
             required
         >
-        <label for="registerCountry">Pays</label>
+        <label for="registerCountry">
+            Pays
+        </label>
         <input
             type="text"
             id="registerCountry"
@@ -71,7 +89,9 @@
             autocomplete="country-name"
             required
         >
-        <label for="registerPhone">Numéro de téléphone</label>
+        <label for="registerPhone">
+            Numéro de téléphone
+        </label>
         <input
             type="tel"
             id="registerPhone"
@@ -79,7 +99,9 @@
             autocomplete="tel"
             required
         >
-        <label for="registerPassword">Mot de passe</label>
+        <label for="registerPassword">
+            Mot de passe
+        </label>
         <input
             type="password"
             id="registerPassword"
@@ -93,7 +115,12 @@
             Créer mon compte
         </button>
     </form>
-    <div id="authMessage" class="auth-message" role="status"></div>
+    <div
+        id="authMessage"
+        class="auth-message"
+        role="status"
+        aria-live="polite"
+    ></div>
     <div class="auth-footer">
         🌍 Une communauté internationale
     </div>
@@ -112,27 +139,55 @@
             <small>INTELLIGENCE ARTIFICIELLE</small>
         </div>
     </div>
-    <button class="new-chat" id="newChat" type="button">
+    <button
+        class="new-chat"
+        id="newChat"
+        type="button"
+    >
         ＋ Nouvelle conversation
     </button>
-    <div class="menu-title">MENU PRINCIPAL</div>
+    <div class="menu-title">
+        MENU PRINCIPAL
+    </div>
     <nav class="navigation">
-        <button class="nav-item active" id="homeButton" type="button">
+        <button
+            class="nav-item active"
+            id="homeButton"
+            type="button"
+        >
             <span>⌂</span> Accueil
         </button>
-        <button class="nav-item" id="historyButton" type="button">
+        <button
+            class="nav-item"
+            id="historyButton"
+            type="button"
+        >
             <span>◷</span> Historique
         </button>
-        <button class="nav-item" id="toolsButton" type="button">
+        <button
+            class="nav-item"
+            id="toolsButton"
+            type="button"
+        >
             <span>✧</span> Découvrir les outils
         </button>
-        <button class="nav-item" id="libraryButton" type="button">
+        <button
+            class="nav-item"
+            id="libraryButton"
+            type="button"
+        >
             <span>▤</span> Bibliothèque
         </button>
     </nav>
-    <!-- HISTORIQUE DES CONVERSATIONS -->
-    <div class="history-section" id="historySection" hidden>
-        <div class="menu-title">MES CONVERSATIONS</div>
+    <!-- HISTORIQUE -->
+    <div
+        class="history-section"
+        id="historySection"
+        hidden
+    >
+        <div class="menu-title">
+            MES CONVERSATIONS
+        </div>
         <input
             type="search"
             id="historySearch"
@@ -140,7 +195,10 @@
             placeholder="Rechercher une conversation..."
             autocomplete="off"
         >
-        <div id="historyList" class="history-list"></div>
+        <div
+            id="historyList"
+            class="history-list"
+        ></div>
     </div>
     <!-- BAS DE LA SIDEBAR -->
     <div class="sidebar-bottom">
@@ -149,40 +207,56 @@
             <h3>Un projet collectif</h3>
             <p>Le futur commence avec nous.</p>
         </div>
-        <button class="nav-item" id="settingsButton" type="button">
+        <button
+            class="nav-item"
+            id="settingsButton"
+            type="button"
+        >
             <span>⚙</span> Paramètres
         </button>
         <div class="user-profile">
-            <div class="avatar" id="userAvatar">G</div>
+            <div class="avatar" id="userAvatar">
+                G
+            </div>
             <div>
                 <strong id="userName">Utilisateur</strong>
                 <small id="userPhone">Compte GENIUS IA</small>
             </div>
         </div>
-        <button class="nav-item logout-button" id="logoutButton" type="button">
+        <button
+            class="nav-item logout-button"
+            id="logoutButton"
+            type="button"
+        >
             <span>⇥</span> Déconnexion
         </button>
     </div>
 </aside>
 <!-- CONTENU PRINCIPAL -->
 <main class="main">
+    <!-- BARRE SUPÉRIEURE -->
     <header class="topbar">
         <button
             class="mobile-menu"
             id="mobileMenu"
             type="button"
             aria-label="Ouvrir le menu"
-        >☰</button>
+        >
+            ☰
+        </button>
         <div class="top-title">
             <span class="status-dot"></span>
-            GENIUS IA <small>ONLINE</small>
+            GENIUS IA
+            <small>ONLINE</small>
         </div>
         <button
             class="profile-button"
             id="profileButton"
             type="button"
             aria-label="Mon profil"
-        >👤</button>
+        >
+            👤
+        </button>
     </header>
     <!-- PAGE ACCUEIL -->
     <section class="welcome" id="welcome">
@@ -245,7 +319,9 @@
     <section class="chat-area" id="chatArea">
         <div class="messages" id="messages">
             <div class="assistant-message">
-                <div class="message-avatar">G</div>
+                <div class="message-avatar">
+                    G
+                </div>
                 <div class="message-content">
                     <strong>GENIUS IA</strong>
                     <p>
@@ -257,28 +333,50 @@
         </div>
     </section>
     <!-- PAGE OUTILS -->
-    <section class="tools-page" id="toolsPage" hidden>
+    <section
+        class="tools-page"
+        id="toolsPage"
+        hidden
+    >
         <div class="page-heading">
             <h1>Découvrir les outils</h1>
-            <p>Explorez les possibilités de GENIUS IA.</p>
+            <p>
+                Explorez les possibilités de GENIUS IA.
+            </p>
         </div>
         <div class="tools-grid">
-            <button class="tool-card" data-prompt="Aide-moi à rédiger un document professionnel." type="button">
+            <button
+                class="tool-card"
+                data-prompt="Aide-moi à rédiger un document professionnel."
+                type="button"
+            >
                 <span>✍️</span>
                 <strong>Rédaction</strong>
                 <small>Créer et améliorer des textes.</small>
             </button>
-            <button class="tool-card" data-prompt="Explique-moi ce sujet étape par étape pour que je puisse apprendre." type="button">
+            <button
+                class="tool-card"
+                data-prompt="Explique-moi ce sujet étape par étape pour que je puisse apprendre."
+                type="button"
+            >
                 <span>📚</span>
                 <strong>Apprentissage</strong>
                 <small>Comprendre et apprendre.</small>
             </button>
-            <button class="tool-card" data-prompt="Aide-moi à programmer une application étape par étape." type="button">
+            <button
+                class="tool-card"
+                data-prompt="Aide-moi à programmer une application étape par étape."
+                type="button"
+            >
                 <span>💻</span>
                 <strong>Programmation</strong>
                 <small>Développer des projets.</small>
             </button>
-            <button class="tool-card" data-prompt="Aide-moi à traduire ce texte." type="button">
+            <button
+                class="tool-card"
+                data-prompt="Aide-moi à traduire ce texte."
+                type="button"
+            >
                 <span>🌍</span>
                 <strong>Traduction</strong>
                 <small>Communiquer dans plusieurs langues.</small>
@@ -286,50 +384,81 @@
         </div>
     </section>
     <!-- PAGE BIBLIOTHÈQUE -->
-    <section class="library-page" id="libraryPage" hidden>
+    <section
+        class="library-page"
+        id="libraryPage"
+        hidden
+    >
         <div class="page-heading">
             <h1>Ma bibliothèque</h1>
-            <p>Retrouvez vos conversations et vos contenus.</p>
+            <p>
+                Retrouvez vos conversations et vos contenus.
+            </p>
         </div>
-        <div class="library-content" id="libraryContent">
-            <p>Votre bibliothèque GENIUS IA apparaîtra ici.</p>
+        <div
+            class="library-content"
+            id="libraryContent"
+        >
+            <p>
+                Votre bibliothèque GENIUS IA apparaîtra ici.
+            </p>
         </div>
     </section>
     <!-- PAGE PARAMÈTRES / PROFIL -->
-    <section class="settings-page" id="settingsPage" hidden>
+    <section
+        class="settings-page"
+        id="settingsPage"
+        hidden
+    >
         <div class="page-heading">
             <h1>Paramètres du compte</h1>
-            <p>Gérez vos informations personnelles.</p>
+            <p>
+                Gérez vos informations personnelles.
+            </p>
         </div>
         <div class="settings-card">
             <h2>Mon profil</h2>
-            <label for="profileName">Nom complet</label>
+            <label for="profileName">
+                Nom complet
+            </label>
             <input
                 type="text"
                 id="profileName"
                 maxlength="100"
                 placeholder="Votre nom complet"
             >
-            <label for="profileCountry">Pays</label>
+            <label for="profileCountry">
+                Pays
+            </label>
             <input
                 type="text"
                 id="profileCountry"
                 placeholder="Votre pays"
             >
-            <button type="button" id="saveProfileButton">
+            <button
+                type="button"
+                id="saveProfileButton"
+            >
                 Enregistrer les modifications
             </button>
-            <div id="profileMessage" role="status"></div>
+            <div
+                id="profileMessage"
+                role="status"
+            ></div>
         </div>
         <div class="settings-card">
             <h2>Changer mon mot de passe</h2>
-            <label for="currentPassword">Mot de passe actuel</label>
+            <label for="currentPassword">
+                Mot de passe actuel
+            </label>
             <input
                 type="password"
                 id="currentPassword"
                 autocomplete="current-password"
             >
-            <label for="newPassword">Nouveau mot de passe</label>
+            <label for="newPassword">
+                Nouveau mot de passe
+            </label>
             <input
                 type="password"
                 id="newPassword"
@@ -337,7 +466,9 @@
                 maxlength="128"
                 autocomplete="new-password"
             >
-            <label for="confirmPassword">Confirmer le nouveau mot de passe</label>
+            <label for="confirmPassword">
+                Confirmer le nouveau mot de passe
+            </label>
             <input
                 type="password"
                 id="confirmPassword"
@@ -345,20 +476,37 @@
                 maxlength="128"
                 autocomplete="new-password"
             >
-            <button type="button" id="changePasswordButton">
+            <button
+                type="button"
+                id="changePasswordButton"
+            >
                 Modifier mon mot de passe
             </button>
-            <div id="passwordMessage" role="status"></div>
+            <div
+                id="passwordMessage"
+                role="status"
+            ></div>
         </div>
     </section>
     <!-- ESPACE ADMINISTRATEUR -->
-    <section class="admin-page" id="adminPage" hidden>
+    <section
+        class="admin-page"
+        id="adminPage"
+        hidden
+    >
         <div class="page-heading">
             <h1>Administration</h1>
-            <p>Gestion de la communauté GENIUS IA.</p>
+            <p>
+                Gestion de la communauté GENIUS IA.
+            </p>
         </div>
-        <div class="admin-content" id="adminContent">
-            <p>Les informations d'administration apparaîtront ici.</p>
+        <div
+            class="admin-content"
+            id="adminContent"
+        >
+            <p>
+                Les informations d'administration apparaîtront ici.
+            </p>
         </div>
     </section>
     <!-- ZONE DE SAISIE -->
@@ -377,7 +525,9 @@
                         id="attachButton"
                         title="Joindre un fichier"
                         disabled
-                    >＋</button>
+                    >
+                        ＋
+                    </button>
                     <span>Votre assistant intelligent</span>
                 </div>
                 <button
@@ -385,7 +535,9 @@
                     id="sendButton"
                     type="button"
                     aria-label="Envoyer le message"
-                >↑</button>
+                >
+                    ↑
+                </button>
             </div>
         </div>
         <p class="disclaimer">
@@ -395,6 +547,10 @@
     </footer>
 </main>
 </div>
+<!-- =========================================
+     CHARGEMENT DU JAVASCRIPT
+     Charger app.js UNE SEULE FOIS
+========================================= -->
 <script src="app.js"></script>
 </body>
 </html>
