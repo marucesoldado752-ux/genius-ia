@@ -1,7 +1,7 @@
 "use strict";
 
 /* =========================================================
-   GENIUS IA — BACKEND V2.2.0
+   GENIUS IA — BACKEND V2.3.0
    Créateur : MARUCE SOLDADO 🇬🇳
    Slogan : Le futur commence avec nous.
 ========================================================= */
@@ -18,7 +18,7 @@ const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
 
-const VERSION = "2.2.0";
+const VERSION = "2.3.0";
 
 /* =========================================================
    CONFIGURATION
@@ -30,6 +30,7 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const AI_MODEL = process.env.AI_MODEL || "openai/gpt-4o-mini";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
+
 const SUPABASE_SECRET_KEY =
   process.env.SUPABASE_SECRET_KEY ||
   process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -154,6 +155,15 @@ function safeUser(user) {
   };
 }
 
+function safeConversation(conversation) {
+  return {
+    id: conversation.id,
+    title: conversation.title,
+    created_at: conversation.created_at,
+    updated_at: conversation.updated_at
+  };
+}
+
 /* =========================================================
    AUTHENTIFICATION
 ========================================================= */
@@ -190,6 +200,43 @@ function auth(req, res, next) {
       error: "Session expirée ou invalide"
     });
   }
+}
+
+/* =========================================================
+   VÉRIFICATION DU COMPTE
+========================================================= */
+
+async function getActiveUser(userId) {
+  const { data: user, error } = await supabase
+    .from("genius_users")
+    .select("id, full_name, phone, role, is_active")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!user || !user.is_active) {
+    return null;
+  }
+
+  return user;
+}
+
+/* =========================================================
+   VÉRIFICATION DE PROPRIÉTÉ D'UNE CONVERSATION
+========================================================= */
+
+async function getOwnedConversation(conversationId, userId) {
+  const { data, error } = await supabase
+    .from("genius_conversations")
+    .select("*")
+    .eq("id", conversationId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data;
 }
 
 /* =========================================================
@@ -398,26 +445,28 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.get("/api/auth/me", auth, async (req, res) => {
   try {
-    const { data: user, error } = await supabase
-      .from("genius_users")
-      .select(
-        "id, full_name, country, phone, role, is_active, created_at"
-      )
-      .eq("id", req.user.id)
-      .maybeSingle();
+    const user = await getActiveUser(req.user.id);
 
-    if (error) throw error;
-
-    if (!user || !user.is_active) {
+    if (!user) {
       return res.status(403).json({
         success: false,
         error: "Compte introuvable ou désactivé"
       });
     }
 
+    const { data: profile, error } = await supabase
+      .from("genius_users")
+      .select(
+        "id, full_name, country, phone, role, created_at"
+      )
+      .eq("id", user.id)
+      .single();
+
+    if (error) throw error;
+
     return res.json({
       success: true,
-      user: safeUser(user)
+      user: safeUser(profile)
     });
 
   } catch (error) {
@@ -431,22 +480,212 @@ app.get("/api/auth/me", auth, async (req, res) => {
 });
 
 /* =========================================================
-   CHAT GENIUS IA — ROUTE PROTÉGÉE
+   CRÉER UNE CONVERSATION
+========================================================= */
+
+app.post("/api/conversations", auth, async (req, res) => {
+  try {
+    const user = await getActiveUser(req.user.id);
+
+    if (!user) {
+      return res.status(403).json({
+        success: false,
+        error: "Compte désactivé"
+      });
+    }
+
+    const title =
+      cleanText(req.body.title, 100) ||
+      "Nouvelle conversation";
+
+    const { data, error } = await supabase
+      .from("genius_conversations")
+      .insert({
+        user_id: user.id,
+        title
+      })
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    return res.status(201).json({
+      success: true,
+      conversation: safeConversation(data)
+    });
+
+  } catch (error) {
+    console.error("CREATE CONVERSATION ERROR:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: "Impossible de créer la conversation"
+    });
+  }
+});
+
+/* =========================================================
+   RÉCUPÉRER LES CONVERSATIONS
+========================================================= */
+
+app.get("/api/conversations", auth, async (req, res) => {
+  try {
+    const user = await getActiveUser(req.user.id);
+
+    if (!user) {
+      return res.status(403).json({
+        success: false,
+        error: "Compte désactivé"
+      });
+    }
+
+    const { data, error } = await supabase
+      .from("genius_conversations")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("updated_at", {
+        ascending: false
+      })
+      .limit(100);
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      conversations: (data || []).map(safeConversation)
+    });
+
+  } catch (error) {
+    console.error("GET CONVERSATIONS ERROR:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: "Impossible de récupérer les conversations"
+    });
+  }
+});
+
+/* =========================================================
+   RÉCUPÉRER LES MESSAGES D'UNE CONVERSATION
+========================================================= */
+
+app.get(
+  "/api/conversations/:id/messages",
+  auth,
+  async (req, res) => {
+    try {
+      const user = await getActiveUser(req.user.id);
+
+      if (!user) {
+        return res.status(403).json({
+          success: false,
+          error: "Compte désactivé"
+        });
+      }
+
+      const conversation = await getOwnedConversation(
+        req.params.id,
+        user.id
+      );
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: "Conversation introuvable"
+        });
+      }
+
+      const { data, error } = await supabase
+        .from("genius_messages")
+        .select("id, role, content, created_at")
+        .eq("conversation_id", conversation.id)
+        .eq("user_id", user.id)
+        .order("created_at", {
+          ascending: true
+        });
+
+      if (error) throw error;
+
+      return res.json({
+        success: true,
+        conversation: safeConversation(conversation),
+        messages: data || []
+      });
+
+    } catch (error) {
+      console.error("GET MESSAGES ERROR:", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible de récupérer les messages"
+      });
+    }
+  }
+);
+
+/* =========================================================
+   SUPPRIMER UNE CONVERSATION
+========================================================= */
+
+app.delete(
+  "/api/conversations/:id",
+  auth,
+  async (req, res) => {
+    try {
+      const user = await getActiveUser(req.user.id);
+
+      if (!user) {
+        return res.status(403).json({
+          success: false,
+          error: "Compte désactivé"
+        });
+      }
+
+      const conversation = await getOwnedConversation(
+        req.params.id,
+        user.id
+      );
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: "Conversation introuvable"
+        });
+      }
+
+      const { error } = await supabase
+        .from("genius_conversations")
+        .delete()
+        .eq("id", conversation.id)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      return res.json({
+        success: true,
+        message: "Conversation supprimée"
+      });
+
+    } catch (error) {
+      console.error("DELETE CONVERSATION ERROR:", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible de supprimer la conversation"
+      });
+    }
+  }
+);
+
+/* =========================================================
+   CHAT GENIUS IA — AVEC HISTORIQUE
 ========================================================= */
 
 app.post("/api/chat", auth, async (req, res) => {
   try {
-    /* Vérifier que le compte existe et reste actif */
+    const user = await getActiveUser(req.user.id);
 
-    const { data: user, error: userError } = await supabase
-      .from("genius_users")
-      .select("id, is_active")
-      .eq("id", req.user.id)
-      .maybeSingle();
-
-    if (userError) throw userError;
-
-    if (!user || !user.is_active) {
+    if (!user) {
       return res.status(403).json({
         success: false,
         error: "Votre compte est désactivé"
@@ -476,14 +715,12 @@ app.post("/api/chat", auth, async (req, res) => {
       });
     }
 
-    const allowedRoles = ["user", "assistant"];
-
     const cleanMessages = [];
 
     for (const message of messages) {
       if (
         !message ||
-        !allowedRoles.includes(message.role) ||
+        !["user", "assistant"].includes(message.role) ||
         typeof message.content !== "string"
       ) {
         continue;
@@ -509,6 +746,55 @@ app.post("/api/chat", auth, async (req, res) => {
       });
     }
 
+    /* ==========================================
+       CONVERSATION
+    ========================================== */
+
+    let conversation = null;
+
+    const conversationId = req.body.conversation_id;
+
+    if (conversationId) {
+      conversation = await getOwnedConversation(
+        conversationId,
+        user.id
+      );
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: "Conversation introuvable"
+        });
+      }
+
+    } else {
+      const firstMessage = cleanMessages
+        .filter(message => message.role === "user")
+        .at(-1);
+
+      const title = cleanText(
+        firstMessage?.content || "Nouvelle conversation",
+        80
+      );
+
+      const { data, error } = await supabase
+        .from("genius_conversations")
+        .insert({
+          user_id: user.id,
+          title: title || "Nouvelle conversation"
+        })
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      conversation = data;
+    }
+
+    /* ==========================================
+       SYSTEM PROMPT
+    ========================================== */
+
     const systemPrompt = `
 Tu es GENIUS IA 🤖, une intelligence artificielle internationale.
 
@@ -533,6 +819,10 @@ Règles :
 - Si tu ne connais pas une réponse, dis-le honnêtement.
 - Respecte les utilisateurs.
 `;
+
+    /* ==========================================
+       APPEL OPENROUTER
+    ========================================== */
 
     const controller = new AbortController();
 
@@ -587,8 +877,7 @@ Règles :
       });
     }
 
-    const reply =
-      result.choices?.[0]?.message?.content;
+    const reply = result.choices?.[0]?.message?.content;
 
     if (!reply || typeof reply !== "string") {
       return res.status(502).json({
@@ -597,10 +886,52 @@ Règles :
       });
     }
 
+    /* ==========================================
+       ENREGISTREMENT DES MESSAGES
+    ========================================== */
+
+    const lastUserMessage = cleanMessages
+      .filter(message => message.role === "user")
+      .at(-1);
+
+    const { error: saveError } = await supabase
+      .from("genius_messages")
+      .insert([
+        {
+          conversation_id: conversation.id,
+          user_id: user.id,
+          role: "user",
+          content: lastUserMessage.content
+        },
+        {
+          conversation_id: conversation.id,
+          user_id: user.id,
+          role: "assistant",
+          content: reply.trim()
+        }
+      ]);
+
+    if (saveError) throw saveError;
+
+    const { error: updateError } = await supabase
+      .from("genius_conversations")
+      .update({
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", conversation.id)
+      .eq("user_id", user.id);
+
+    if (updateError) throw updateError;
+
+    /* ==========================================
+       RÉPONSE
+    ========================================== */
+
     return res.json({
       success: true,
       reply: reply.trim(),
-      model: AI_MODEL
+      model: AI_MODEL,
+      conversation_id: conversation.id
     });
 
   } catch (error) {
