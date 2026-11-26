@@ -1385,3 +1385,39 @@ body::after {
 .home-page p {
     color: #ffffff !important;
 }
+/* GENIUS IA — CORRECTION DÉFINITIVE DU FOND NOIR */
+
+html,
+body,
+.app,
+.main,
+main.main,
+section#welcome,
+.welcome,
+#welcome {
+    background: #000000 !important;
+    background-color: #000000 !important;
+    background-image: none !important;
+    color: #ffffff !important;
+}
+
+/* Éléments de la page d'accueil */
+
+#welcome h1,
+#welcome h2,
+#welcome p,
+#welcome span,
+.welcome h1,
+.welcome h2,
+.welcome p {
+    color: #ffffff !important;
+}
+
+/* Suggestions */
+
+#welcome .suggestion,
+.welcome .suggestion {
+    background: #0a0a0a !important;
+    color: #ffffff !important;
+    border-color: #222222 !important;
+}
