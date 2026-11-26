@@ -1,335 +1,398 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#080d18">
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#080d18">
 <title>GENIUS IA 🤖 | Le futur commence avec nous</title>
 <meta name="description" content="GENIUS IA, votre intelligence artificielle nouvelle génération.">
-
+<meta name="author" content="MARUCE SOLDADO">
 <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-
-<!-- AUTHENTIFICATION -->
-
+<!-- =========================================
+     AUTHENTIFICATION
+========================================= -->
 <div id="authScreen" class="auth-screen">
-
-    <div class="auth-card">
-
-        <div class="auth-logo">G</div>
-
-        <h1>GENIUS <span>IA</span></h1>
-        <p class="auth-subtitle">Le futur commence avec nous.</p>
-
-        <div class="auth-tabs">
-            <button id="loginTab" class="auth-tab active" type="button">
-                Connexion
+<div class="auth-card">
+    <div class="auth-logo">G</div>
+    <h1>GENIUS <span>IA</span></h1>
+    <p class="auth-subtitle">Le futur commence avec nous.</p>
+    <div class="auth-tabs">
+        <button id="loginTab" class="auth-tab active" type="button">
+            Connexion
+        </button>
+        <button id="registerTab" class="auth-tab" type="button">
+            Inscription
+        </button>
+    </div>
+    <form id="loginForm">
+        <h2>Bon retour parmi nous</h2>
+        <p>Connectez-vous à votre compte GENIUS IA.</p>
+        <label for="loginPhone">Numéro de téléphone</label>
+        <input
+            type="tel"
+            id="loginPhone"
+            placeholder="+224XXXXXXXXX"
+            autocomplete="tel"
+            required
+        >
+        <label for="loginPassword">Mot de passe</label>
+        <input
+            type="password"
+            id="loginPassword"
+            placeholder="Votre mot de passe"
+            autocomplete="current-password"
+            required
+        >
+        <button type="submit" class="auth-submit">
+            Se connecter
+        </button>
+    </form>
+    <form id="registerForm" hidden>
+        <h2>Créer un compte</h2>
+        <p>Rejoignez la communauté GENIUS IA.</p>
+        <label for="registerName">Nom complet</label>
+        <input
+            type="text"
+            id="registerName"
+            placeholder="Votre nom complet"
+            autocomplete="name"
+            maxlength="100"
+            required
+        >
+        <label for="registerCountry">Pays</label>
+        <input
+            type="text"
+            id="registerCountry"
+            placeholder="Votre pays"
+            autocomplete="country-name"
+            required
+        >
+        <label for="registerPhone">Numéro de téléphone</label>
+        <input
+            type="tel"
+            id="registerPhone"
+            placeholder="+224XXXXXXXXX"
+            autocomplete="tel"
+            required
+        >
+        <label for="registerPassword">Mot de passe</label>
+        <input
+            type="password"
+            id="registerPassword"
+            placeholder="Minimum 8 caractères"
+            minlength="8"
+            maxlength="128"
+            autocomplete="new-password"
+            required
+        >
+        <button type="submit" class="auth-submit">
+            Créer mon compte
+        </button>
+    </form>
+    <div id="authMessage" class="auth-message" role="status"></div>
+    <div class="auth-footer">
+        🌍 Une communauté internationale
+    </div>
+</div>
+</div>
+<!-- =========================================
+     APPLICATION PRINCIPALE
+========================================= -->
+<div class="app" id="mainApp" hidden>
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+    <div class="brand">
+        <div class="brand-icon">G</div>
+        <div>
+            <h2>GENIUS <span>IA</span></h2>
+            <small>INTELLIGENCE ARTIFICIELLE</small>
+        </div>
+    </div>
+    <button class="new-chat" id="newChat" type="button">
+        ＋ Nouvelle conversation
+    </button>
+    <div class="menu-title">MENU PRINCIPAL</div>
+    <nav class="navigation">
+        <button class="nav-item active" id="homeButton" type="button">
+            <span>⌂</span> Accueil
+        </button>
+        <button class="nav-item" id="historyButton" type="button">
+            <span>◷</span> Historique
+        </button>
+        <button class="nav-item" id="toolsButton" type="button">
+            <span>✧</span> Découvrir les outils
+        </button>
+        <button class="nav-item" id="libraryButton" type="button">
+            <span>▤</span> Bibliothèque
+        </button>
+    </nav>
+    <!-- HISTORIQUE DES CONVERSATIONS -->
+    <div class="history-section" id="historySection" hidden>
+        <div class="menu-title">MES CONVERSATIONS</div>
+        <input
+            type="search"
+            id="historySearch"
+            class="history-search"
+            placeholder="Rechercher une conversation..."
+            autocomplete="off"
+        >
+        <div id="historyList" class="history-list"></div>
+    </div>
+    <!-- BAS DE LA SIDEBAR -->
+    <div class="sidebar-bottom">
+        <div class="team-card">
+            <span>🌍</span>
+            <h3>Un projet collectif</h3>
+            <p>Le futur commence avec nous.</p>
+        </div>
+        <button class="nav-item" id="settingsButton" type="button">
+            <span>⚙</span> Paramètres
+        </button>
+        <div class="user-profile">
+            <div class="avatar" id="userAvatar">G</div>
+            <div>
+                <strong id="userName">Utilisateur</strong>
+                <small id="userPhone">Compte GENIUS IA</small>
+            </div>
+        </div>
+        <button class="nav-item logout-button" id="logoutButton" type="button">
+            <span>⇥</span> Déconnexion
+        </button>
+    </div>
+</aside>
+<!-- CONTENU PRINCIPAL -->
+<main class="main">
+    <header class="topbar">
+        <button
+            class="mobile-menu"
+            id="mobileMenu"
+            type="button"
+            aria-label="Ouvrir le menu"
+        >☰</button>
+        <div class="top-title">
+            <span class="status-dot"></span>
+            GENIUS IA <small>ONLINE</small>
+        </div>
+        <button
+            class="profile-button"
+            id="profileButton"
+            type="button"
+            aria-label="Mon profil"
+        >👤</button>
+    </header>
+    <!-- PAGE ACCUEIL -->
+    <section class="welcome" id="welcome">
+        <div class="welcome-badge">
+            ✦ INTELLIGENCE NOUVELLE GÉNÉRATION
+        </div>
+        <div class="genius-logo">
+            <span>G</span>
+            <div class="orbit"></div>
+        </div>
+        <h1>
+            Bonjour, bienvenue sur
+            <span>GENIUS IA</span>
+        </h1>
+        <p class="welcome-description">
+            Votre intelligence artificielle.
+            Imaginez, apprenez, créez et innovez
+            sans limites.
+        </p>
+        <div class="suggestions">
+            <button
+                class="suggestion"
+                data-prompt="Aide-moi à apprendre quelque chose de nouveau."
+                type="button"
+            >
+                <span>📚</span>
+                <strong>Apprendre</strong>
+                <small>Développer mes connaissances</small>
             </button>
-
-            <button id="registerTab" class="auth-tab" type="button">
-                Inscription
+            <button
+                class="suggestion"
+                data-prompt="Aide-moi à écrire un texte professionnel."
+                type="button"
+            >
+                <span>✍️</span>
+                <strong>Rédiger</strong>
+                <small>Créer des textes</small>
+            </button>
+            <button
+                class="suggestion"
+                data-prompt="Aide-moi à créer un projet informatique."
+                type="button"
+            >
+                <span>💻</span>
+                <strong>Programmer</strong>
+                <small>Construire des projets</small>
+            </button>
+            <button
+                class="suggestion"
+                data-prompt="Explique-moi une nouvelle technologie."
+                type="button"
+            >
+                <span>🚀</span>
+                <strong>Innover</strong>
+                <small>Explorer les possibilités</small>
             </button>
         </div>
-
-        <form id="loginForm">
-
-            <h2>Bon retour parmi nous</h2>
-            <p>Connectez-vous à votre compte GENIUS IA.</p>
-
-            <label>Numéro de téléphone</label>
-            <input
-                type="tel"
-                id="loginPhone"
-                placeholder="+224XXXXXXXXX"
-                autocomplete="tel"
-                required
-            >
-
-            <label>Mot de passe</label>
-            <input
-                type="password"
-                id="loginPassword"
-                placeholder="Votre mot de passe"
-                autocomplete="current-password"
-                required
-            >
-
-            <button type="submit" class="auth-submit">
-                Se connecter
+    </section>
+    <!-- PAGE CONVERSATION -->
+    <section class="chat-area" id="chatArea">
+        <div class="messages" id="messages">
+            <div class="assistant-message">
+                <div class="message-avatar">G</div>
+                <div class="message-content">
+                    <strong>GENIUS IA</strong>
+                    <p>
+                        Bonjour ! Je suis GENIUS IA.
+                        Comment puis-je vous aider aujourd'hui ?
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- PAGE OUTILS -->
+    <section class="tools-page" id="toolsPage" hidden>
+        <div class="page-heading">
+            <h1>Découvrir les outils</h1>
+            <p>Explorez les possibilités de GENIUS IA.</p>
+        </div>
+        <div class="tools-grid">
+            <button class="tool-card" data-prompt="Aide-moi à rédiger un document professionnel." type="button">
+                <span>✍️</span>
+                <strong>Rédaction</strong>
+                <small>Créer et améliorer des textes.</small>
             </button>
-
-        </form>
-
-        <form id="registerForm" hidden>
-
-            <h2>Créer un compte</h2>
-            <p>Rejoignez la communauté GENIUS IA.</p>
-
-            <label>Nom complet</label>
+            <button class="tool-card" data-prompt="Explique-moi ce sujet étape par étape pour que je puisse apprendre." type="button">
+                <span>📚</span>
+                <strong>Apprentissage</strong>
+                <small>Comprendre et apprendre.</small>
+            </button>
+            <button class="tool-card" data-prompt="Aide-moi à programmer une application étape par étape." type="button">
+                <span>💻</span>
+                <strong>Programmation</strong>
+                <small>Développer des projets.</small>
+            </button>
+            <button class="tool-card" data-prompt="Aide-moi à traduire ce texte." type="button">
+                <span>🌍</span>
+                <strong>Traduction</strong>
+                <small>Communiquer dans plusieurs langues.</small>
+            </button>
+        </div>
+    </section>
+    <!-- PAGE BIBLIOTHÈQUE -->
+    <section class="library-page" id="libraryPage" hidden>
+        <div class="page-heading">
+            <h1>Ma bibliothèque</h1>
+            <p>Retrouvez vos conversations et vos contenus.</p>
+        </div>
+        <div class="library-content" id="libraryContent">
+            <p>Votre bibliothèque GENIUS IA apparaîtra ici.</p>
+        </div>
+    </section>
+    <!-- PAGE PARAMÈTRES / PROFIL -->
+    <section class="settings-page" id="settingsPage" hidden>
+        <div class="page-heading">
+            <h1>Paramètres du compte</h1>
+            <p>Gérez vos informations personnelles.</p>
+        </div>
+        <div class="settings-card">
+            <h2>Mon profil</h2>
+            <label for="profileName">Nom complet</label>
             <input
                 type="text"
-                id="registerName"
-                placeholder="Votre nom complet"
-                autocomplete="name"
+                id="profileName"
                 maxlength="100"
-                required
+                placeholder="Votre nom complet"
             >
-
-            <label>Pays</label>
+            <label for="profileCountry">Pays</label>
             <input
                 type="text"
-                id="registerCountry"
+                id="profileCountry"
                 placeholder="Votre pays"
-                autocomplete="country-name"
-                required
             >
-
-            <label>Numéro de téléphone</label>
-            <input
-                type="tel"
-                id="registerPhone"
-                placeholder="+224XXXXXXXXX"
-                autocomplete="tel"
-                required
-            >
-
-            <label>Mot de passe</label>
+            <button type="button" id="saveProfileButton">
+                Enregistrer les modifications
+            </button>
+            <div id="profileMessage" role="status"></div>
+        </div>
+        <div class="settings-card">
+            <h2>Changer mon mot de passe</h2>
+            <label for="currentPassword">Mot de passe actuel</label>
             <input
                 type="password"
-                id="registerPassword"
-                placeholder="Minimum 8 caractères"
+                id="currentPassword"
+                autocomplete="current-password"
+            >
+            <label for="newPassword">Nouveau mot de passe</label>
+            <input
+                type="password"
+                id="newPassword"
                 minlength="8"
                 maxlength="128"
                 autocomplete="new-password"
-                required
             >
-
-            <button type="submit" class="auth-submit">
-                Créer mon compte
+            <label for="confirmPassword">Confirmer le nouveau mot de passe</label>
+            <input
+                type="password"
+                id="confirmPassword"
+                minlength="8"
+                maxlength="128"
+                autocomplete="new-password"
+            >
+            <button type="button" id="changePasswordButton">
+                Modifier mon mot de passe
             </button>
-
-        </form>
-
-        <div id="authMessage" class="auth-message" role="status"></div>
-
-        <div class="auth-footer">
-            🌍 Une communauté internationale
+            <div id="passwordMessage" role="status"></div>
         </div>
-
-    </div>
-
+    </section>
+    <!-- ESPACE ADMINISTRATEUR -->
+    <section class="admin-page" id="adminPage" hidden>
+        <div class="page-heading">
+            <h1>Administration</h1>
+            <p>Gestion de la communauté GENIUS IA.</p>
+        </div>
+        <div class="admin-content" id="adminContent">
+            <p>Les informations d'administration apparaîtront ici.</p>
+        </div>
+    </section>
+    <!-- ZONE DE SAISIE -->
+    <footer class="composer" id="composer">
+        <div class="input-box">
+            <textarea
+                id="userInput"
+                placeholder="Posez votre question à GENIUS IA..."
+                rows="1"
+                aria-label="Votre message"
+            ></textarea>
+            <div class="input-actions">
+                <div class="tools">
+                    <button
+                        type="button"
+                        id="attachButton"
+                        title="Joindre un fichier"
+                        disabled
+                    >＋</button>
+                    <span>Votre assistant intelligent</span>
+                </div>
+                <button
+                    class="send-button"
+                    id="sendButton"
+                    type="button"
+                    aria-label="Envoyer le message"
+                >↑</button>
+            </div>
+        </div>
+        <p class="disclaimer">
+            GENIUS IA peut produire des erreurs.
+            Vérifiez les informations importantes.
+        </p>
+    </footer>
+</main>
 </div>
-
-
-<!-- APPLICATION -->
-
-<div class="app" id="mainApp" hidden>
-
-    <!-- SIDEBAR -->
-
-    <aside class="sidebar" id="sidebar">
-
-        <div class="brand">
-            <div class="brand-icon">G</div>
-            <div>
-                <h2>GENIUS <span>IA</span></h2>
-                <small>INTELLIGENCE ARTIFICIELLE</small>
-            </div>
-        </div>
-
-        <button class="new-chat" id="newChat">
-            ＋ Nouvelle conversation
-        </button>
-
-        <div class="menu-title">MENU PRINCIPAL</div>
-
-        <nav class="navigation">
-
-            <button class="nav-item active">
-                <span>⌂</span> Accueil
-            </button>
-
-            <button class="nav-item" id="historyButton">
-                <span>◷</span> Historique
-            </button>
-
-            <button class="nav-item">
-                <span>✧</span> Découvrir les outils
-            </button>
-
-            <button class="nav-item">
-                <span>▤</span> Bibliothèque
-            </button>
-
-        </nav>
-
-        <div class="sidebar-bottom">
-
-            <div class="team-card">
-                <span>🌍</span>
-                <h3>Un projet collectif</h3>
-                <p>Le futur commence avec nous.</p>
-            </div>
-
-            <button class="nav-item">
-                <span>⚙</span> Paramètres
-            </button>
-
-            <div class="user-profile">
-                <div class="avatar" id="userAvatar">G</div>
-                <div>
-                    <strong id="userName">Utilisateur</strong>
-                    <small id="userPhone">Compte GENIUS IA</small>
-                </div>
-            </div>
-
-            <button class="nav-item logout-button" id="logoutButton">
-                <span>⇥</span> Déconnexion
-            </button>
-
-        </div>
-
-    </aside>
-
-
-    <!-- CONTENU PRINCIPAL -->
-
-    <main class="main">
-
-        <header class="topbar">
-
-            <button class="mobile-menu" id="mobileMenu">☰</button>
-
-            <div class="top-title">
-                <span class="status-dot"></span>
-                GENIUS IA <small>ONLINE</small>
-            </div>
-
-            <button class="profile-button" id="profileButton">
-                👤
-            </button>
-
-        </header>
-
-
-        <!-- PAGE ACCUEIL -->
-
-        <section class="welcome" id="welcome">
-
-            <div class="welcome-badge">
-                ✦ INTELLIGENCE NOUVELLE GÉNÉRATION
-            </div>
-
-            <div class="genius-logo">
-                <span>G</span>
-                <div class="orbit"></div>
-            </div>
-
-            <h1>
-                Bonjour, bienvenue sur
-                <span>GENIUS IA</span>
-            </h1>
-
-            <p class="welcome-description">
-                Votre intelligence artificielle.
-                Imaginez, apprenez, créez et innovez
-                sans limites.
-            </p>
-
-            <div class="suggestions">
-
-                <button class="suggestion" data-prompt="Aide-moi à apprendre quelque chose de nouveau.">
-                    <span>📚</span>
-                    <strong>Apprendre</strong>
-                    <small>Développer mes connaissances</small>
-                </button>
-
-                <button class="suggestion" data-prompt="Aide-moi à écrire un texte professionnel.">
-                    <span>✍️</span>
-                    <strong>Rédiger</strong>
-                    <small>Créer des textes</small>
-                </button>
-
-                <button class="suggestion" data-prompt="Aide-moi à créer un projet informatique.">
-                    <span>💻</span>
-                    <strong>Programmer</strong>
-                    <small>Construire des projets</small>
-                </button>
-
-                <button class="suggestion" data-prompt="Explique-moi une nouvelle technologie.">
-                    <span>🚀</span>
-                    <strong>Innover</strong>
-                    <small>Explorer les possibilités</small>
-                </button>
-
-            </div>
-
-        </section>
-
-
-        <!-- CONVERSATION -->
-
-        <section class="chat-area" id="chatArea">
-
-            <div class="messages" id="messages">
-
-                <div class="assistant-message">
-                    <div class="message-avatar">G</div>
-
-                    <div class="message-content">
-                        <strong>GENIUS IA</strong>
-                        <p>
-                            Bonjour ! Je suis GENIUS IA.
-                            Comment puis-je vous aider aujourd'hui ?
-                        </p>
-                    </div>
-                </div>
-
-            </div>
-
-        </section>
-
-
-        <!-- ZONE DE SAISIE -->
-
-        <footer class="composer">
-
-            <div class="input-box">
-
-                <textarea
-                    id="userInput"
-                    placeholder="Posez votre question à GENIUS IA..."
-                    rows="1"
-                ></textarea>
-
-                <div class="input-actions">
-
-                    <div class="tools">
-                        <button title="Joindre un fichier" disabled>＋</button>
-                        <span>Votre assistant intelligent</span>
-                    </div>
-
-                    <button class="send-button" id="sendButton">↑</button>
-
-                </div>
-
-            </div>
-
-            <p class="disclaimer">
-                GENIUS IA peut produire des erreurs.
-                Vérifiez les informations importantes.
-            </p>
-
-        </footer>
-
-    </main>
-
-</div>
-
 <script src="app.js"></script>
-
 </body>
 </html>
