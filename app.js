@@ -1,6 +1,6 @@
 /* =================================================
-   GENIUS IA V2.2
-   AUTHENTIFICATION + CHAT IA
+   GENIUS IA V2.3
+   AUTHENTIFICATION + CHAT IA + HISTORIQUE SUPABASE
    Créateur : MARUCE SOLDADO 🇬🇳
 ================================================= */
 
@@ -19,9 +19,10 @@ const LOGIN_ENDPOINT = `${API_BASE_URL}/api/auth/login`;
 const REGISTER_ENDPOINT = `${API_BASE_URL}/api/auth/register`;
 const PROFILE_ENDPOINT = `${API_BASE_URL}/api/auth/me`;
 
+const CONVERSATIONS_ENDPOINT = `${API_BASE_URL}/api/conversations`;
+
 const TOKEN_KEY = "genius_ia_token";
 const USER_KEY = "genius_ia_user";
-
 const ACTIVE_KEY = "genius_ia_active_v1";
 
 let STORAGE_KEY = null;
@@ -29,7 +30,9 @@ let STORAGE_KEY = null;
 let currentUser = null;
 let conversations = [];
 let activeConversation = null;
+
 let isSending = false;
+let eventsAttached = false;
 
 
 /* =================================================
@@ -67,55 +70,144 @@ const userAvatar = document.getElementById("userAvatar");
 
 
 /* =================================================
-   OUTILS
+   OUTILS GÉNÉRAUX
 ================================================= */
 
 function getToken() {
     return localStorage.getItem(TOKEN_KEY);
 }
 
+
 function getUserStorageKey(userId) {
     return `genius_ia_conversations_${userId}`;
 }
 
+
 function showAuthMessage(message, type = "error") {
+
     if (!authMessage) return;
 
     authMessage.textContent = message;
+
     authMessage.className = `auth-message ${type}`;
+
 }
 
+
 function setButtonLoading(button, loading, normalText) {
+
     if (!button) return;
 
     button.disabled = loading;
-    button.textContent = loading ? "Patientez..." : normalText;
+
+    button.textContent = loading
+        ? "Patientez..."
+        : normalText;
+
 }
+
+
+function generateID() {
+
+    return "genius_" +
+        Date.now() +
+        "_" +
+        Math.random().toString(36).substring(2, 9);
+
+}
+
+
+function getConversationTitle(text) {
+
+    const cleanText = String(text || "").trim();
+
+    if (!cleanText) return "Nouvelle conversation";
+
+    return cleanText.length > 45
+        ? cleanText.substring(0, 45) + "..."
+        : cleanText;
+
+}
+
+
+function normalizeConversation(conversation) {
+
+    return {
+
+        id: conversation.id,
+
+        title: conversation.title || "Nouvelle conversation",
+
+        messages: Array.isArray(conversation.messages)
+            ? conversation.messages
+            : [],
+
+        createdAt:
+            conversation.created_at ||
+            conversation.createdAt ||
+            new Date().toISOString(),
+
+        updatedAt:
+            conversation.updated_at ||
+            conversation.updatedAt ||
+            new Date().toISOString(),
+
+        isLocal: Boolean(conversation.isLocal)
+
+    };
+
+}
+
+
+/* =================================================
+   REQUÊTES API
+================================================= */
 
 async function apiRequest(url, options = {}) {
 
     const headers = {
+
         "Content-Type": "application/json",
+
         ...(options.headers || {})
+
     };
 
     const token = getToken();
 
     if (token) {
+
         headers.Authorization = `Bearer ${token}`;
+
     }
 
-    const response = await fetch(url, {
-        ...options,
-        headers
-    });
+    let response;
+
+    try {
+
+        response = await fetch(url, {
+            ...options,
+            headers
+        });
+
+    } catch (error) {
+
+        throw new Error(
+            "Impossible de joindre le serveur. Vérifiez votre connexion Internet."
+        );
+
+    }
 
     let data;
 
     try {
+
         data = await response.json();
+
     } catch {
+
         throw new Error("Réponse invalide du serveur.");
+
     }
 
     if (!response.ok || !data.success) {
@@ -127,6 +219,7 @@ async function apiRequest(url, options = {}) {
     }
 
     return data;
+
 }
 
 
@@ -136,37 +229,44 @@ async function apiRequest(url, options = {}) {
 
 function showLoginForm() {
 
+    if (!loginForm || !registerForm) return;
+
     loginForm.hidden = false;
     registerForm.hidden = true;
 
-    loginTab.classList.add("active");
-    registerTab.classList.remove("active");
+    loginTab?.classList.add("active");
+    registerTab?.classList.remove("active");
 
     showAuthMessage("");
 
 }
 
+
 function showRegisterForm() {
+
+    if (!loginForm || !registerForm) return;
 
     loginForm.hidden = true;
     registerForm.hidden = false;
 
-    loginTab.classList.remove("active");
-    registerTab.classList.add("active");
+    loginTab?.classList.remove("active");
+    registerTab?.classList.add("active");
 
     showAuthMessage("");
 
 }
 
-loginTab.addEventListener("click", showLoginForm);
-registerTab.addEventListener("click", showRegisterForm);
+
+loginTab?.addEventListener("click", showLoginForm);
+
+registerTab?.addEventListener("click", showRegisterForm);
 
 
 /* =================================================
    INSCRIPTION
 ================================================= */
 
-registerForm.addEventListener("submit", async event => {
+registerForm?.addEventListener("submit", async event => {
 
     event.preventDefault();
 
@@ -176,19 +276,19 @@ registerForm.addEventListener("submit", async event => {
 
     const full_name = document
         .getElementById("registerName")
-        .value.trim();
+        ?.value.trim();
 
     const country = document
         .getElementById("registerCountry")
-        .value.trim();
+        ?.value.trim();
 
     const phone = document
         .getElementById("registerPhone")
-        .value.trim();
+        ?.value.trim();
 
     const password = document
         .getElementById("registerPassword")
-        .value;
+        ?.value;
 
     if (!full_name || !country || !phone || !password) {
 
@@ -210,7 +310,10 @@ registerForm.addEventListener("submit", async event => {
 
     setButtonLoading(button, true, "Créer mon compte");
 
-    showAuthMessage("Création de votre compte...", "loading");
+    showAuthMessage(
+        "Création de votre compte...",
+        "loading"
+    );
 
     try {
 
@@ -219,16 +322,22 @@ registerForm.addEventListener("submit", async event => {
             method: "POST",
 
             body: JSON.stringify({
+
                 full_name,
                 country,
                 phone,
                 password
+
             })
 
         });
 
         if (!data.token || !data.user) {
-            throw new Error("Réponse d'inscription incomplète.");
+
+            throw new Error(
+                "Réponse d'inscription incomplète."
+            );
+
         }
 
         localStorage.setItem(TOKEN_KEY, data.token);
@@ -239,11 +348,6 @@ registerForm.addEventListener("submit", async event => {
         );
 
         currentUser = data.user;
-
-        showAuthMessage(
-            "Compte créé avec succès !",
-            "success"
-        );
 
         registerForm.reset();
 
@@ -268,7 +372,7 @@ registerForm.addEventListener("submit", async event => {
    CONNEXION
 ================================================= */
 
-loginForm.addEventListener("submit", async event => {
+loginForm?.addEventListener("submit", async event => {
 
     event.preventDefault();
 
@@ -278,11 +382,11 @@ loginForm.addEventListener("submit", async event => {
 
     const phone = document
         .getElementById("loginPhone")
-        .value.trim();
+        ?.value.trim();
 
     const password = document
         .getElementById("loginPassword")
-        .value;
+        ?.value;
 
     if (!phone || !password) {
 
@@ -296,7 +400,10 @@ loginForm.addEventListener("submit", async event => {
 
     setButtonLoading(button, true, "Se connecter");
 
-    showAuthMessage("Connexion en cours...", "loading");
+    showAuthMessage(
+        "Connexion en cours...",
+        "loading"
+    );
 
     try {
 
@@ -305,14 +412,20 @@ loginForm.addEventListener("submit", async event => {
             method: "POST",
 
             body: JSON.stringify({
+
                 phone,
                 password
+
             })
 
         });
 
         if (!data.token || !data.user) {
-            throw new Error("Réponse de connexion incomplète.");
+
+            throw new Error(
+                "Réponse de connexion incomplète."
+            );
+
         }
 
         localStorage.setItem(TOKEN_KEY, data.token);
@@ -352,14 +465,19 @@ async function verifySession() {
     const token = getToken();
 
     if (!token) {
+
         showAuthentication();
+
         return false;
+
     }
 
     try {
 
         const data = await apiRequest(PROFILE_ENDPOINT, {
+
             method: "GET"
+
         });
 
         currentUser = data.user;
@@ -373,7 +491,10 @@ async function verifySession() {
 
     } catch (error) {
 
-        console.warn("SESSION EXPIRÉE:", error.message);
+        console.warn(
+            "SESSION EXPIRÉE:",
+            error.message
+        );
 
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
@@ -395,8 +516,9 @@ async function verifySession() {
 
 function showAuthentication() {
 
-    authScreen.hidden = false;
-    mainApp.hidden = true;
+    if (authScreen) authScreen.hidden = false;
+
+    if (mainApp) mainApp.hidden = true;
 
     showLoginForm();
 
@@ -407,21 +529,27 @@ function showAuthentication() {
    OUVERTURE APPLICATION
 ================================================= */
 
-function enterApplication() {
+async function enterApplication() {
 
     if (!currentUser) {
+
         showAuthentication();
+
         return;
+
     }
 
-    authScreen.hidden = true;
-    mainApp.hidden = false;
+    if (authScreen) authScreen.hidden = true;
+
+    if (mainApp) mainApp.hidden = false;
 
     updateUserProfile();
 
     STORAGE_KEY = getUserStorageKey(currentUser.id);
 
-    initializeChat();
+    attachEvents();
+
+    await initializeChat();
 
 }
 
@@ -440,15 +568,22 @@ function updateUserProfile() {
         "Utilisateur";
 
     if (userNameElement) {
+
         userNameElement.textContent = name;
+
     }
 
     if (userPhoneElement) {
-        userPhoneElement.textContent = currentUser.phone;
+
+        userPhoneElement.textContent = currentUser.phone || "";
+
     }
 
     if (userAvatar) {
-        userAvatar.textContent = name.charAt(0).toUpperCase();
+
+        userAvatar.textContent =
+            name.charAt(0).toUpperCase();
+
     }
 
 }
@@ -458,10 +593,14 @@ function updateUserProfile() {
    DÉCONNEXION
 ================================================= */
 
-logoutButton.addEventListener("click", () => {
+logoutButton?.addEventListener("click", () => {
 
-    if (!confirm("Voulez-vous vraiment vous déconnecter ?")) {
+    if (
+        !confirm("Voulez-vous vraiment vous déconnecter ?")
+    ) {
+
         return;
+
     }
 
     localStorage.removeItem(TOKEN_KEY);
@@ -472,6 +611,8 @@ logoutButton.addEventListener("click", () => {
     conversations = [];
     activeConversation = null;
 
+    STORAGE_KEY = null;
+
     showAuthentication();
 
 });
@@ -481,11 +622,24 @@ logoutButton.addEventListener("click", () => {
    INITIALISATION CHAT
 ================================================= */
 
-function initializeChat() {
+async function initializeChat() {
 
-    if (!STORAGE_KEY) return;
+    if (!STORAGE_KEY || !currentUser) return;
 
-    loadConversations();
+    loadLocalConversations();
+
+    try {
+
+        await loadRemoteConversations();
+
+    } catch (error) {
+
+        console.error(
+            "CHARGEMENT HISTORIQUE:",
+            error
+        );
+
+    }
 
     const savedActive = localStorage.getItem(
         `${ACTIVE_KEY}_${currentUser.id}`
@@ -496,9 +650,7 @@ function initializeChat() {
         conversations.some(c => c.id === savedActive)
     ) {
 
-        activeConversation = savedActive;
-
-        renderConversation(savedActive);
+        await openConversation(savedActive);
 
     } else {
 
@@ -508,30 +660,33 @@ function initializeChat() {
 
     }
 
-    attachEvents();
-
 }
 
 
 /* =================================================
-   CHARGEMENT CONVERSATIONS
+   CHARGEMENT LOCAL
 ================================================= */
 
-function loadConversations() {
+function loadLocalConversations() {
 
     try {
 
         const saved = localStorage.getItem(STORAGE_KEY);
 
-        conversations = saved ? JSON.parse(saved) : [];
+        const local = saved
+            ? JSON.parse(saved)
+            : [];
 
-        if (!Array.isArray(conversations)) {
-            conversations = [];
-        }
+        conversations = Array.isArray(local)
+            ? local.map(normalizeConversation)
+            : [];
 
     } catch (error) {
 
-        console.error("Erreur de chargement:", error);
+        console.error(
+            "ERREUR HISTORIQUE LOCAL:",
+            error
+        );
 
         conversations = [];
 
@@ -541,7 +696,63 @@ function loadConversations() {
 
 
 /* =================================================
-   SAUVEGARDE
+   CHARGEMENT SUPABASE
+================================================= */
+
+async function loadRemoteConversations() {
+
+    const data = await apiRequest(
+        CONVERSATIONS_ENDPOINT,
+        {
+            method: "GET"
+        }
+    );
+
+    const remoteList = Array.isArray(data.conversations)
+        ? data.conversations
+        : [];
+
+    const remoteConversations = remoteList.map(item => {
+
+        return normalizeConversation({
+            ...item,
+            messages: [],
+            isLocal: false
+        });
+
+    });
+
+    const remoteIds = new Set(
+        remoteConversations.map(c => c.id)
+    );
+
+    const oldLocalConversations = conversations.filter(c => {
+
+        return c.isLocal || !remoteIds.has(c.id);
+
+    });
+
+    conversations = [
+
+        ...remoteConversations,
+
+        ...oldLocalConversations
+
+    ];
+
+    conversations.sort((a, b) => {
+
+        return new Date(b.updatedAt) - new Date(a.updatedAt);
+
+    });
+
+    saveConversations();
+
+}
+
+
+/* =================================================
+   SAUVEGARDE LOCALE
 ================================================= */
 
 function saveConversations() {
@@ -566,7 +777,10 @@ function saveConversations() {
 
     } catch (error) {
 
-        console.error("Erreur de sauvegarde:", error);
+        console.error(
+            "ERREUR SAUVEGARDE:",
+            error
+        );
 
     }
 
@@ -574,15 +788,45 @@ function saveConversations() {
 
 
 /* =================================================
-   IDENTIFIANT UNIQUE
+   CRÉATION CONVERSATION SERVEUR
 ================================================= */
 
-function generateID() {
+async function createRemoteConversation(title) {
 
-    return "genius_" +
-        Date.now() +
-        "_" +
-        Math.random().toString(36).substring(2, 9);
+    const data = await apiRequest(
+        CONVERSATIONS_ENDPOINT,
+        {
+
+            method: "POST",
+
+            body: JSON.stringify({
+
+                title: title || "Nouvelle conversation"
+
+            })
+
+        }
+    );
+
+    const conversation = data.conversation || data;
+
+    if (!conversation.id) {
+
+        throw new Error(
+            "Le serveur n'a pas retourné l'identifiant de la conversation."
+        );
+
+    }
+
+    return normalizeConversation({
+
+        ...conversation,
+
+        messages: [],
+
+        isLocal: false
+
+    });
 
 }
 
@@ -591,37 +835,84 @@ function generateID() {
    NOUVELLE CONVERSATION
 ================================================= */
 
-function createNewConversation() {
+async function createNewConversation() {
 
-    if (isSending) return;
+    if (isSending || !currentUser) return;
 
-    const conversation = {
+    if (newChatButton) {
 
-        id: generateID(),
+        newChatButton.disabled = true;
 
-        title: "Nouvelle conversation",
+    }
 
-        messages: [],
+    try {
 
-        createdAt: new Date().toISOString(),
+        const conversation = await createRemoteConversation(
+            "Nouvelle conversation"
+        );
 
-        updatedAt: new Date().toISOString()
+        conversations.unshift(conversation);
 
-    };
+        activeConversation = conversation.id;
 
-    conversations.unshift(conversation);
+        saveConversations();
 
-    activeConversation = conversation.id;
+        messages.innerHTML = "";
 
-    saveConversations();
+        showChat();
 
-    messages.innerHTML = "";
+        if (userInput) {
 
-    showChat();
+            userInput.value = "";
 
-    userInput.value = "";
+            userInput.focus();
 
-    userInput.focus();
+        }
+
+    } catch (error) {
+
+        console.error(
+            "NOUVELLE CONVERSATION:",
+            error
+        );
+
+        const conversation = {
+
+            id: generateID(),
+
+            title: "Nouvelle conversation",
+
+            messages: [],
+
+            createdAt: new Date().toISOString(),
+
+            updatedAt: new Date().toISOString(),
+
+            isLocal: true
+
+        };
+
+        conversations.unshift(conversation);
+
+        activeConversation = conversation.id;
+
+        saveConversations();
+
+        messages.innerHTML = "";
+
+        showChat();
+
+        if (userInput) userInput.focus();
+
+    } finally {
+
+        if (newChatButton) {
+
+            newChatButton.disabled = false;
+
+        }
+
+    }
 
 }
 
@@ -632,22 +923,109 @@ function createNewConversation() {
 
 function showWelcome() {
 
-    welcome.style.display = "block";
+    if (welcome) welcome.style.display = "block";
 
-    chatArea.style.display = "none";
+    if (chatArea) chatArea.style.display = "none";
 
 }
 
 
 /* =================================================
-   DISCUSSION
+   AFFICHAGE CHAT
 ================================================= */
 
 function showChat() {
 
-    welcome.style.display = "none";
+    if (welcome) welcome.style.display = "none";
 
-    chatArea.style.display = "block";
+    if (chatArea) chatArea.style.display = "block";
+
+}
+
+
+/* =================================================
+   CHARGEMENT DES MESSAGES D'UNE CONVERSATION
+================================================= */
+
+async function loadConversationMessages(id) {
+
+    const data = await apiRequest(
+        `${CONVERSATIONS_ENDPOINT}/${encodeURIComponent(id)}/messages`,
+        {
+
+            method: "GET"
+
+        }
+    );
+
+    return Array.isArray(data.messages)
+        ? data.messages
+        : [];
+
+}
+
+
+/* =================================================
+   OUVERTURE CONVERSATION
+================================================= */
+
+async function openConversation(id) {
+
+    const conversation = conversations.find(
+        c => c.id === id
+    );
+
+    if (!conversation) {
+
+        showWelcome();
+
+        return;
+
+    }
+
+    activeConversation = id;
+
+    messages.innerHTML = "";
+
+    showChat();
+
+    try {
+
+        if (!conversation.isLocal) {
+
+            const remoteMessages =
+                await loadConversationMessages(id);
+
+            conversation.messages = remoteMessages.map(message => ({
+
+                role: message.role,
+
+                content: message.content,
+
+                createdAt:
+                    message.created_at ||
+                    new Date().toISOString()
+
+            }));
+
+        }
+
+        renderConversation(id);
+
+    } catch (error) {
+
+        console.error(
+            "CHARGEMENT DES MESSAGES:",
+            error
+        );
+
+        renderConversation(id);
+
+        alert(
+            "Impossible de récupérer les messages sur le serveur."
+        );
+
+    }
 
 }
 
@@ -680,10 +1058,17 @@ function renderConversation(id) {
 
     conversation.messages.forEach(message => {
 
-        displayMessage(
-            message.role,
-            message.content
-        );
+        if (
+            message.role === "user" ||
+            message.role === "assistant"
+        ) {
+
+            displayMessage(
+                message.role,
+                message.content
+            );
+
+        }
 
     });
 
@@ -731,9 +1116,11 @@ function displayMessage(role, content) {
     paragraph.textContent = content;
 
     messageContent.appendChild(name);
+
     messageContent.appendChild(paragraph);
 
     wrapper.appendChild(avatar);
+
     wrapper.appendChild(messageContent);
 
     messages.appendChild(wrapper);
@@ -776,9 +1163,11 @@ function showThinking() {
     paragraph.textContent = "GENIUS IA réfléchit...";
 
     content.appendChild(name);
+
     content.appendChild(paragraph);
 
     wrapper.appendChild(avatar);
+
     wrapper.appendChild(content);
 
     messages.appendChild(wrapper);
@@ -811,13 +1200,18 @@ function scrollToBottom() {
 
     setTimeout(() => {
 
+        if (!messages) return;
+
         const lastMessage = messages.lastElementChild;
 
         if (lastMessage) {
 
             lastMessage.scrollIntoView({
+
                 behavior: "smooth",
+
                 block: "end"
+
             });
 
         }
@@ -831,42 +1225,33 @@ function scrollToBottom() {
    APPEL MOTEUR IA
 ================================================= */
 
-async function askGeniusAI(messageHistory) {
+async function askGeniusAI(messageHistory, conversationId) {
 
-    const response = await fetch(CHAT_ENDPOINT, {
+    const body = {
 
-        method: "POST",
+        messages: messageHistory
 
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${getToken()}`
-        },
+    };
 
-        body: JSON.stringify({
-            messages: messageHistory
-        })
+    if (
+        conversationId &&
+        !String(conversationId).startsWith("genius_")
+    ) {
 
-    });
-
-    let data;
-
-    try {
-
-        data = await response.json();
-
-    } catch {
-
-        throw new Error("Réponse invalide du serveur.");
+        body.conversation_id = conversationId;
 
     }
 
-    if (!response.ok || !data.success) {
+    const data = await apiRequest(
+        CHAT_ENDPOINT,
+        {
 
-        throw new Error(
-            data.error || "Impossible de contacter GENIUS IA."
-        );
+            method: "POST",
 
-    }
+            body: JSON.stringify(body)
+
+        }
+    );
 
     if (
         typeof data.reply !== "string" ||
@@ -877,7 +1262,13 @@ async function askGeniusAI(messageHistory) {
 
     }
 
-    return data.reply;
+    return {
+
+        reply: data.reply,
+
+        conversation_id: data.conversation_id || null
+
+    };
 
 }
 
@@ -888,15 +1279,19 @@ async function askGeniusAI(messageHistory) {
 
 async function sendMessage() {
 
-    if (isSending || !currentUser) return;
+    if (isSending || !currentUser || !userInput) return;
 
     const text = userInput.value.trim();
 
     if (!text) return;
 
-    if (!activeConversation) {
+    let conversation = conversations.find(
+        c => c.id === activeConversation
+    );
 
-        const conversation = {
+    if (!conversation) {
+
+        conversation = {
 
             id: generateID(),
 
@@ -906,7 +1301,9 @@ async function sendMessage() {
 
             createdAt: new Date().toISOString(),
 
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+
+            isLocal: true
 
         };
 
@@ -916,15 +1313,10 @@ async function sendMessage() {
 
     }
 
-    const conversation = conversations.find(
-        c => c.id === activeConversation
-    );
-
-    if (!conversation) return;
-
     isSending = true;
 
-    sendButton.disabled = true;
+    if (sendButton) sendButton.disabled = true;
+
     userInput.disabled = true;
 
     userInput.value = "";
@@ -943,10 +1335,7 @@ async function sendMessage() {
 
     if (conversation.messages.length === 1) {
 
-        conversation.title =
-            text.length > 35
-                ? text.substring(0, 35) + "..."
-                : text;
+        conversation.title = getConversationTitle(text);
 
     }
 
@@ -962,57 +1351,170 @@ async function sendMessage() {
 
         const messageHistory = conversation.messages
 
-            .filter(message =>
-                ["user", "assistant"].includes(message.role)
-            )
+            .filter(message => {
+
+                return ["user", "assistant"].includes(
+                    message.role
+                );
+
+            })
 
             .slice(-30)
 
             .map(message => ({
+
                 role: message.role,
+
                 content: message.content
+
             }));
 
-        const answer = await askGeniusAI(messageHistory);
+        const result = await askGeniusAI(
+            messageHistory,
+            conversation.isLocal ? null : conversation.id
+        );
 
         removeThinking();
+
+        /*
+         * Le serveur peut créer automatiquement
+         * une conversation si aucun identifiant
+         * n'a été transmis.
+         */
+
+        if (result.conversation_id) {
+
+            const oldId = conversation.id;
+
+            conversation.id = result.conversation_id;
+
+            conversation.isLocal = false;
+
+            if (activeConversation === oldId) {
+
+                activeConversation = result.conversation_id;
+
+            }
+
+        }
 
         conversation.messages.push({
 
             role: "assistant",
 
-            content: answer,
+            content: result.reply,
 
             createdAt: new Date().toISOString()
 
         });
 
-        displayMessage("assistant", answer);
-
         conversation.updatedAt = new Date().toISOString();
+
+        displayMessage("assistant", result.reply);
+
+        conversations.sort((a, b) => {
+
+            return new Date(b.updatedAt) - new Date(a.updatedAt);
+
+        });
 
         saveConversations();
 
     } catch (error) {
 
-        console.error("GENIUS IA ERROR:", error);
+        console.error(
+            "GENIUS IA ERROR:",
+            error
+        );
 
         removeThinking();
 
         displayMessage(
+
             "assistant",
+
             "Impossible de traiter votre demande.\n\n" +
             error.message
+
         );
 
     } finally {
 
         isSending = false;
 
-        sendButton.disabled = false;
+        if (sendButton) sendButton.disabled = false;
+
         userInput.disabled = false;
 
         userInput.focus();
+
+    }
+
+}
+
+
+/* =================================================
+   SUPPRESSION CONVERSATION
+================================================= */
+
+async function deleteConversation(id) {
+
+    const conversation = conversations.find(
+        c => c.id === id
+    );
+
+    if (!conversation) return;
+
+    if (
+        !confirm("Voulez-vous supprimer cette conversation ?")
+    ) {
+
+        return;
+
+    }
+
+    try {
+
+        if (!conversation.isLocal) {
+
+            await apiRequest(
+                `${CONVERSATIONS_ENDPOINT}/${encodeURIComponent(id)}`,
+                {
+
+                    method: "DELETE"
+
+                }
+            );
+
+        }
+
+        conversations = conversations.filter(
+            c => c.id !== id
+        );
+
+        if (activeConversation === id) {
+
+            activeConversation = null;
+
+            messages.innerHTML = "";
+
+            showWelcome();
+
+        }
+
+        saveConversations();
+
+    } catch (error) {
+
+        console.error(
+            "SUPPRESSION CONVERSATION:",
+            error
+        );
+
+        alert(
+            "Impossible de supprimer cette conversation : " +
+            error.message
+        );
 
     }
 
@@ -1027,11 +1529,15 @@ function attachSuggestionEvents() {
 
     document.querySelectorAll(".suggestion").forEach(button => {
 
+        if (button.dataset.geniusBound === "true") return;
+
+        button.dataset.geniusBound = "true";
+
         button.addEventListener("click", () => {
 
             const prompt = button.dataset.prompt;
 
-            if (!prompt) return;
+            if (!prompt || !userInput) return;
 
             userInput.value = prompt;
 
@@ -1059,15 +1565,23 @@ function showHistory() {
     }
 
     const history = conversations
-        .map((conversation, index) =>
-            `${index + 1}. ${conversation.title}`
-        )
+
+        .map((conversation, index) => {
+
+            return `${index + 1}. ${conversation.title}`;
+
+        })
+
         .join("\n");
 
     const selection = prompt(
+
         "HISTORIQUE GENIUS IA\n\n" +
+
         history +
+
         "\n\nEntrez le numéro de la conversation :"
+
     );
 
     if (selection === null) return;
@@ -1075,9 +1589,13 @@ function showHistory() {
     const index = Number(selection) - 1;
 
     if (
+
         !Number.isInteger(index) ||
+
         index < 0 ||
+
         index >= conversations.length
+
     ) {
 
         alert("Numéro invalide.");
@@ -1086,7 +1604,7 @@ function showHistory() {
 
     }
 
-    renderConversation(conversations[index].id);
+    openConversation(conversations[index].id);
 
 }
 
@@ -1097,6 +1615,8 @@ function showHistory() {
 
 function toggleSidebar() {
 
+    if (!sidebar) return;
+
     sidebar.classList.toggle("open");
 
 }
@@ -1106,36 +1626,40 @@ function toggleSidebar() {
    ÉVÉNEMENTS CHAT
 ================================================= */
 
-let eventsAttached = false;
-
 function attachEvents() {
 
     if (eventsAttached) return;
 
     eventsAttached = true;
 
-    sendButton.addEventListener("click", sendMessage);
+    sendButton?.addEventListener(
+        "click",
+        sendMessage
+    );
 
-    newChatButton.addEventListener(
+    newChatButton?.addEventListener(
         "click",
         createNewConversation
     );
 
-    mobileMenu.addEventListener(
+    mobileMenu?.addEventListener(
         "click",
         toggleSidebar
     );
 
-    historyButton.addEventListener(
+    historyButton?.addEventListener(
         "click",
         showHistory
     );
 
-    userInput.addEventListener("keydown", event => {
+    userInput?.addEventListener("keydown", event => {
 
         if (
+
             event.key === "Enter" &&
+
             !event.shiftKey
+
         ) {
 
             event.preventDefault();
@@ -1146,11 +1670,12 @@ function attachEvents() {
 
     });
 
-    userInput.addEventListener("input", () => {
+    userInput?.addEventListener("input", () => {
 
         userInput.style.height = "auto";
 
         userInput.style.height =
+
             Math.min(userInput.scrollHeight, 160) + "px";
 
     });
@@ -1158,10 +1683,15 @@ function attachEvents() {
     document.addEventListener("click", event => {
 
         if (
+
             window.innerWidth <= 650 &&
-            sidebar.classList.contains("open") &&
+
+            sidebar?.classList.contains("open") &&
+
             !sidebar.contains(event.target) &&
-            !mobileMenu.contains(event.target)
+
+            !mobileMenu?.contains(event.target)
+
         ) {
 
             sidebar.classList.remove("open");
@@ -1182,14 +1712,21 @@ function attachEvents() {
 document.addEventListener("DOMContentLoaded", async () => {
 
     if (
+
         !authScreen ||
+
         !mainApp ||
+
         !loginForm ||
+
         !registerForm
+
     ) {
 
         console.error(
+
             "Interface d'authentification introuvable. Vérifie index.html."
+
         );
 
         return;
@@ -1201,7 +1738,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const validSession = await verifySession();
 
     if (validSession) {
-        enterApplication();
+
+        await enterApplication();
+
     }
 
 });
