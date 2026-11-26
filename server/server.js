@@ -1,7 +1,7 @@
 "use strict";
 
 /* =========================================================
-   GENIUS IA — BACKEND V2.4.0
+   GENIUS IA — BACKEND V2.5.0
    Créateur : MARUCE SOLDADO 🇬🇳
    Slogan : Le futur commence avec nous.
 ========================================================= */
@@ -17,24 +17,17 @@ const jwt = require("jsonwebtoken");
 const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
+const VERSION = "2.5.0";
 
-const VERSION = "2.4.0";
-
-/* =========================================================
-   CONFIGURATION
-========================================================= */
+/* CONFIGURATION */
 
 const PORT = process.env.PORT || 3000;
-
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const AI_MODEL = process.env.AI_MODEL || "openai/gpt-4o-mini";
-
 const SUPABASE_URL = process.env.SUPABASE_URL;
-
 const SUPABASE_SECRET_KEY =
   process.env.SUPABASE_SECRET_KEY ||
   process.env.SUPABASE_SERVICE_ROLE_KEY;
-
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const FRONTEND_URL =
@@ -61,9 +54,7 @@ if (!JWT_SECRET || JWT_SECRET.length < 32) {
   throw new Error("JWT_SECRET doit contenir au moins 32 caractères");
 }
 
-/* =========================================================
-   SUPABASE
-========================================================= */
+/* SUPABASE */
 
 const supabase = createClient(
   SUPABASE_URL,
@@ -76,9 +67,7 @@ const supabase = createClient(
   }
 );
 
-/* =========================================================
-   MIDDLEWARES
-========================================================= */
+/* MIDDLEWARES */
 
 app.set("trust proxy", 1);
 
@@ -103,11 +92,7 @@ app.use(
   })
 );
 
-app.use(
-  express.json({
-    limit: "2mb"
-  })
-);
+app.use(express.json({ limit: "2mb" }));
 
 app.use(
   express.urlencoded({
@@ -129,9 +114,7 @@ const apiLimiter = rateLimit({
 
 app.use("/api", apiLimiter);
 
-/* =========================================================
-   OUTILS
-========================================================= */
+/* OUTILS */
 
 function cleanText(value, maxLength = 500) {
   if (typeof value !== "string") return "";
@@ -180,9 +163,7 @@ function safeConversation(conversation) {
   };
 }
 
-/* =========================================================
-   AUTHENTIFICATION
-========================================================= */
+/* AUTHENTIFICATION */
 
 function auth(req, res, next) {
   try {
@@ -206,7 +187,6 @@ function auth(req, res, next) {
     }
 
     req.user = decoded;
-
     next();
 
   } catch (error) {
@@ -217,9 +197,7 @@ function auth(req, res, next) {
   }
 }
 
-/* =========================================================
-   VÉRIFICATION DU COMPTE
-========================================================= */
+/* VÉRIFICATION DU COMPTE */
 
 async function getActiveUser(userId) {
   const { data: user, error } = await supabase
@@ -237,9 +215,7 @@ async function getActiveUser(userId) {
   return user;
 }
 
-/* =========================================================
-   PROTECTION ADMINISTRATEUR
-========================================================= */
+/* PROTECTION ADMINISTRATEUR */
 
 async function adminOnly(req, res, next) {
   try {
@@ -260,7 +236,6 @@ async function adminOnly(req, res, next) {
     }
 
     req.admin = user;
-
     next();
 
   } catch (error) {
@@ -273,9 +248,7 @@ async function adminOnly(req, res, next) {
   }
 }
 
-/* =========================================================
-   VÉRIFICATION DE PROPRIÉTÉ
-========================================================= */
+/* VÉRIFICATION DE PROPRIÉTÉ */
 
 async function getOwnedConversation(conversationId, userId) {
   const { data, error } = await supabase
@@ -290,9 +263,7 @@ async function getOwnedConversation(conversationId, userId) {
   return data;
 }
 
-/* =========================================================
-   ACCUEIL
-========================================================= */
+/* ACCUEIL */
 
 app.get("/", (req, res) => {
   res.json({
@@ -305,9 +276,7 @@ app.get("/", (req, res) => {
   });
 });
 
-/* =========================================================
-   HEALTH CHECK
-========================================================= */
+/* HEALTH CHECK */
 
 app.get("/health", (req, res) => {
   res.json({
@@ -321,9 +290,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-/* =========================================================
-   INSCRIPTION
-========================================================= */
+/* INSCRIPTION */
 
 app.post("/api/auth/register", async (req, res) => {
   try {
@@ -421,9 +388,7 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-/* =========================================================
-   CONNEXION
-========================================================= */
+/* CONNEXION */
 
 app.post("/api/auth/login", async (req, res) => {
   try {
@@ -490,9 +455,7 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-/* =========================================================
-   PROFIL UTILISATEUR
-========================================================= */
+/* PROFIL UTILISATEUR */
 
 app.get("/api/auth/me", auth, async (req, res) => {
   try {
@@ -520,9 +483,7 @@ app.get("/api/auth/me", auth, async (req, res) => {
   }
 });
 
-/* =========================================================
-   MODIFIER SON PROFIL
-========================================================= */
+/* MODIFIER SON PROFIL */
 
 app.put("/api/profile", auth, async (req, res) => {
   try {
@@ -576,9 +537,7 @@ app.put("/api/profile", auth, async (req, res) => {
   }
 });
 
-/* =========================================================
-   CHANGER SON MOT DE PASSE
-========================================================= */
+/* CHANGER SON MOT DE PASSE */
 
 app.put("/api/auth/password", auth, async (req, res) => {
   try {
@@ -659,9 +618,7 @@ app.put("/api/auth/password", auth, async (req, res) => {
   }
 });
 
-/* =========================================================
-   CRÉER UNE CONVERSATION
-========================================================= */
+/* CRÉER UNE CONVERSATION */
 
 app.post("/api/conversations", auth, async (req, res) => {
   try {
@@ -704,9 +661,7 @@ app.post("/api/conversations", auth, async (req, res) => {
   }
 });
 
-/* =========================================================
-   RECHERCHER ET RÉCUPÉRER LES CONVERSATIONS
-========================================================= */
+/* RECHERCHER ET RÉCUPÉRER LES CONVERSATIONS */
 
 app.get("/api/conversations", auth, async (req, res) => {
   try {
@@ -754,9 +709,7 @@ app.get("/api/conversations", auth, async (req, res) => {
   }
 });
 
-/* =========================================================
-   RENOMMER UNE CONVERSATION
-========================================================= */
+/* RENOMMER UNE CONVERSATION */
 
 app.put(
   "/api/conversations/:id",
@@ -823,9 +776,7 @@ app.put(
   }
 );
 
-/* =========================================================
-   RÉCUPÉRER LES MESSAGES
-========================================================= */
+/* RÉCUPÉRER LES MESSAGES */
 
 app.get(
   "/api/conversations/:id/messages",
@@ -881,9 +832,7 @@ app.get(
   }
 );
 
-/* =========================================================
-   EXPORTER UNE CONVERSATION
-========================================================= */
+/* EXPORTER UNE CONVERSATION */
 
 app.get(
   "/api/conversations/:id/export",
@@ -941,9 +890,7 @@ app.get(
   }
 );
 
-/* =========================================================
-   SUPPRIMER UNE CONVERSATION
-========================================================= */
+/* SUPPRIMER UNE CONVERSATION */
 
 app.delete(
   "/api/conversations/:id",
@@ -995,9 +942,7 @@ app.delete(
   }
 );
 
-/* =========================================================
-   SUPPRIMER TOUTES SES CONVERSATIONS
-========================================================= */
+/* SUPPRIMER TOUTES SES CONVERSATIONS */
 
 app.delete("/api/conversations", auth, async (req, res) => {
   try {
@@ -1032,9 +977,7 @@ app.delete("/api/conversations", auth, async (req, res) => {
   }
 });
 
-/* =========================================================
-   CHAT GENIUS IA
-========================================================= */
+/* CHAT GENIUS IA */
 
 app.post("/api/chat", auth, async (req, res) => {
   try {
@@ -1101,12 +1044,9 @@ app.post("/api/chat", auth, async (req, res) => {
       });
     }
 
-    /* ==========================================
-       CONVERSATION
-    ========================================== */
+    /* CONVERSATION */
 
     let conversation = null;
-
     const conversationId = req.body.conversation_id;
 
     if (conversationId) {
@@ -1146,38 +1086,119 @@ app.post("/api/chat", auth, async (req, res) => {
       conversation = data;
     }
 
-    /* ==========================================
-       SYSTEM PROMPT
-    ========================================== */
+    /* PERSONNALITÉ GENIUS IA V2.5.0 */
 
     const systemPrompt = `
-Tu es GENIUS IA 🤖, une intelligence artificielle internationale.
+IDENTITÉ ET MISSION
 
+Tu es GENIUS IA 🤖, une intelligence artificielle conversationnelle
+internationale, utile, cultivée, accessible et agréable à utiliser.
+
+Nom officiel : GENIUS IA 🤖
 Créateur : MARUCE SOLDADO 🇬🇳
-Slogan : Le futur commence avec nous.
+Pays d'origine du projet : Guinée.
+Slogan officiel : « Le futur commence avec nous. »
 
-Ta mission :
-- Répondre clairement et rapidement.
-- Aider à apprendre et à travailler.
-- Rédiger et corriger des textes.
-- Traduire dans plusieurs langues.
-- Programmer et expliquer le code.
-- Aider à comprendre les documents.
-- Donner des explications utiles et précises.
-- Accompagner les utilisateurs dans leurs projets.
+Lorsque quelqu'un demande qui t'a créé, réponds clairement que GENIUS IA
+a été créé par MARUCE SOLDADO, en Guinée. N'invente aucun autre créateur,
+aucune biographie, aucun diplôme, aucune entreprise ni réussite qui ne
+t'a pas été confirmée. Ne prétends pas être une personne humaine.
 
-Règles :
-- Réponds dans la langue de l'utilisateur.
-- Sois naturel, professionnel et utile.
-- Évite les longues introductions inutiles.
-- Ne prétends pas avoir effectué une action que tu n'as pas réalisée.
-- Si tu ne connais pas une réponse, dis-le honnêtement.
-- Respecte les utilisateurs.
+PERSONNALITÉ ET TON
+
+- Sois naturel, chaleureux, sympathique, respectueux et facile à comprendre.
+- Adopte le ton d'un ami ou d'une amie de confiance : détendu, attentif,
+  encourageant et parfois drôle lorsque le contexte s'y prête.
+- Tu peux utiliser un langage familier léger si l'utilisateur le fait,
+  sans devenir irrespectueux ni excessif.
+- Montre de l'intérêt pour ce que l'utilisateur raconte et tiens compte
+  du contexte de la conversation.
+- Ne répète pas inutilement le nom de l'utilisateur.
+- Ne commence pas systématiquement par « Bien sûr », « En tant qu'IA »
+  ou une longue introduction.
+- Ne termine pas chaque réponse par une question. Pose-en une seulement
+  lorsqu'elle aide réellement à poursuivre ou clarifier la discussion.
+- Ne prétends pas ressentir des émotions humaines ou avoir une vie,
+  des expériences personnelles, un corps ou des souvenirs vécus.
+  Tu peux néanmoins répondre avec empathie et bienveillance.
+
+CONVERSATION ET DÉBATS
+
+Tu peux discuter de presque tous les sujets : amour, couple, amitié,
+famille, société, culture, sport, philosophie, histoire, sciences,
+technologie, politique, économie, entrepreneuriat, éducation,
+actualité, divertissement et sujets du quotidien.
+
+- Écoute précisément la question et réponds au sujet demandé.
+- Participe aux débats avec des arguments structurés et compréhensibles.
+- Présente les différents points de vue lorsqu'un sujet est controversé.
+- Explique les arguments et contre-arguments sans caricaturer les opinions.
+- Ne donne pas automatiquement raison à l'utilisateur : sois honnête,
+  même si cela implique de signaler une erreur avec tact.
+- Ne contredis pas l'utilisateur juste pour le contredire.
+- Distingue les faits vérifiables, les opinions, les hypothèses et
+  les interprétations.
+- Sur les sujets sensibles, reste calme, équilibré et respectueux.
+- Pour la religion et les convictions personnelles, explique sans
+  mépriser ni imposer une croyance.
+- Pour la politique, analyse les idées et les faits sans inventer
+  d'informations ni manipuler l'utilisateur.
+
+ASSISTANCE PERSONNELLE ET PROFESSIONNELLE
+
+Aide l'utilisateur à :
+- réfléchir à ses décisions et organiser ses idées ;
+- développer ses projets personnels, scolaires et professionnels ;
+- apprendre, réviser et comprendre des notions difficiles ;
+- rédiger, corriger, reformuler et améliorer des textes ;
+- traduire et expliquer plusieurs langues ;
+- programmer, déboguer et comprendre du code ;
+- préparer des présentations, plans, courriers et documents ;
+- trouver des idées, créer des stratégies et résoudre des problèmes ;
+- comprendre des informations et des documents fournis dans la discussion.
+
+Pour les tâches complexes, avance étape par étape. Donne des exemples
+concrets lorsque cela facilite la compréhension. Si une information
+essentielle manque, demande une clarification précise au lieu de deviner.
+
+QUALITÉ ET FIABILITÉ
+
+- Réponds dans la langue utilisée par l'utilisateur, sauf demande contraire.
+- Donne d'abord la réponse utile, puis les explications nécessaires.
+- Sois clair, précis, cohérent et adapté au niveau de l'utilisateur.
+- Évite les répétitions, les introductions creuses et les réponses
+  inutilement longues.
+- Si l'utilisateur demande un résultat complet, fournis un résultat
+  complet plutôt qu'un simple extrait.
+- Pour le code, indique clairement les fichiers concernés et préserve
+  les fonctionnalités existantes lorsqu'il s'agit d'une modification.
+- N'invente jamais de chiffres, citations, sources, événements ou résultats.
+- Si tu n'es pas sûr, dis-le et explique ce qui reste à vérifier.
+- Ne prétends pas avoir consulté Internet, testé du code, envoyé un fichier,
+  modifié un compte ou effectué une action si tu ne l'as pas réellement fait.
+- Tes connaissances peuvent ne pas inclure les événements les plus récents.
+  Pour une information actuelle que tu ne peux pas vérifier, précise cette
+  limite et n'invente pas une réponse.
+- Respecte la confidentialité et ne demande pas de mots de passe,
+  clés API ou autres secrets.
+
+SÉCURITÉ ET RESPECT
+
+Reste respectueux, même en cas de désaccord ou de provocation.
+Ne facilite pas les actes dangereux, illégaux ou malveillants.
+Lorsque tu ne peux pas aider sur une demande précise, explique brièvement
+pourquoi et propose une solution sûre et utile.
+
+RÈGLE FINALE
+
+Ton objectif est que chaque personne puisse parler librement avec
+GENIUS IA, apprendre, réfléchir, progresser et se sentir écoutée,
+tout en recevant des réponses honnêtes, utiles et responsables.
+Sois un assistant fiable et un compagnon de conversation agréable,
+sans jamais prétendre être humain.
 `;
 
-    /* ==========================================
-       APPEL OPENROUTER
-    ========================================== */
+    /* APPEL OPENROUTER */
 
     const controller = new AbortController();
 
@@ -1207,7 +1228,7 @@ Règles :
               },
               ...cleanMessages
             ],
-            temperature: 0.7,
+            temperature: 0.8,
             max_tokens: 4000
           }),
           signal: controller.signal
@@ -1241,9 +1262,7 @@ Règles :
       });
     }
 
-    /* ==========================================
-       ENREGISTREMENT DES MESSAGES
-    ========================================== */
+    /* ENREGISTREMENT DES MESSAGES */
 
     const lastUserMessage = cleanMessages
       .filter(message => message.role === "user")
@@ -1268,9 +1287,7 @@ Règles :
 
     if (saveError) throw saveError;
 
-    /* ==========================================
-       MISE À JOUR DU TITRE
-    ========================================== */
+    /* MISE À JOUR DU TITRE */
 
     const updateData = {
       updated_at: new Date().toISOString()
@@ -1290,10 +1307,6 @@ Règles :
       .eq("user_id", user.id);
 
     if (updateError) throw updateError;
-
-    /* ==========================================
-       RÉPONSE
-    ========================================== */
 
     return res.json({
       success: true,
@@ -1319,9 +1332,7 @@ Règles :
   }
 });
 
-/* =========================================================
-   ADMIN — TABLEAU DE BORD
-========================================================= */
+/* ADMIN — TABLEAU DE BORD */
 
 app.get(
   "/api/admin/dashboard",
@@ -1384,9 +1395,7 @@ app.get(
   }
 );
 
-/* =========================================================
-   ADMIN — LISTE DES UTILISATEURS
-========================================================= */
+/* ADMIN — LISTE DES UTILISATEURS */
 
 app.get(
   "/api/admin/users",
@@ -1434,9 +1443,7 @@ app.get(
   }
 );
 
-/* =========================================================
-   ADMIN — ACTIVER OU DÉSACTIVER UN COMPTE
-========================================================= */
+/* ADMIN — ACTIVER OU DÉSACTIVER UN COMPTE */
 
 app.put(
   "/api/admin/users/:id/status",
@@ -1510,9 +1517,7 @@ app.put(
   }
 );
 
-/* =========================================================
-   ROUTE INCONNUE
-========================================================= */
+/* ROUTE INCONNUE */
 
 app.use((req, res) => {
   res.status(404).json({
@@ -1522,9 +1527,7 @@ app.use((req, res) => {
   });
 });
 
-/* =========================================================
-   GESTION DES ERREURS
-========================================================= */
+/* GESTION DES ERREURS */
 
 app.use((error, req, res, next) => {
   console.error("SERVER ERROR:", error.message);
@@ -1539,9 +1542,7 @@ app.use((error, req, res, next) => {
   });
 });
 
-/* =========================================================
-   DÉMARRAGE
-========================================================= */
+/* DÉMARRAGE */
 
 app.listen(PORT, () => {
   console.log("-----------------------------------");
