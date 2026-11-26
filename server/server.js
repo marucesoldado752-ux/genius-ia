@@ -1,7 +1,7 @@
 "use strict";
 
 /* =========================================================
-   GENIUS IA — BACKEND V2.3.0
+   GENIUS IA — BACKEND V2.4.0
    Créateur : MARUCE SOLDADO 🇬🇳
    Slogan : Le futur commence avec nous.
 ========================================================= */
@@ -18,7 +18,7 @@ const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
 
-const VERSION = "2.3.0";
+const VERSION = "2.4.0";
 
 /* =========================================================
    CONFIGURATION
@@ -53,6 +53,14 @@ if (!JWT_SECRET || JWT_SECRET.length < 32) {
   console.error("ERREUR : JWT_SECRET absent ou trop court");
 }
 
+if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
+  throw new Error("Configuration Supabase obligatoire");
+}
+
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  throw new Error("JWT_SECRET doit contenir au moins 32 caractères");
+}
+
 /* =========================================================
    SUPABASE
 ========================================================= */
@@ -74,31 +82,39 @@ const supabase = createClient(
 
 app.set("trust proxy", 1);
 
-app.use(helmet({
-  crossOriginResourcePolicy: false
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false
+  })
+);
 
-app.use(cors({
-  origin: [
-    FRONTEND_URL,
-    "https://marucesoldado752-ux.github.io",
-    "https://genius-ia-sand.vercel.app"
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization"
-  ]
-}));
+app.use(
+  cors({
+    origin: [
+      FRONTEND_URL,
+      "https://marucesoldado752-ux.github.io",
+      "https://genius-ia-sand.vercel.app"
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization"
+    ]
+  })
+);
 
-app.use(express.json({
-  limit: "2mb"
-}));
+app.use(
+  express.json({
+    limit: "2mb"
+  })
+);
 
-app.use(express.urlencoded({
-  extended: true,
-  limit: "2mb"
-}));
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "2mb"
+  })
+);
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -180,7 +196,6 @@ function auth(req, res, next) {
     }
 
     const token = header.slice(7);
-
     const decoded = jwt.verify(token, JWT_SECRET);
 
     if (!decoded.id) {
@@ -209,7 +224,7 @@ function auth(req, res, next) {
 async function getActiveUser(userId) {
   const { data: user, error } = await supabase
     .from("genius_users")
-    .select("id, full_name, phone, role, is_active")
+    .select("id, full_name, phone, country, role, is_active, created_at")
     .eq("id", userId)
     .maybeSingle();
 
@@ -223,7 +238,43 @@ async function getActiveUser(userId) {
 }
 
 /* =========================================================
-   VÉRIFICATION DE PROPRIÉTÉ D'UNE CONVERSATION
+   PROTECTION ADMINISTRATEUR
+========================================================= */
+
+async function adminOnly(req, res, next) {
+  try {
+    const user = await getActiveUser(req.user.id);
+
+    if (!user) {
+      return res.status(403).json({
+        success: false,
+        error: "Compte introuvable ou désactivé"
+      });
+    }
+
+    if (user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Accès réservé à l'administrateur"
+      });
+    }
+
+    req.admin = user;
+
+    next();
+
+  } catch (error) {
+    console.error("ADMIN AUTH ERROR:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: "Vérification administrateur impossible"
+    });
+  }
+}
+
+/* =========================================================
+   VÉRIFICATION DE PROPRIÉTÉ
 ========================================================= */
 
 async function getOwnedConversation(conversationId, userId) {
@@ -240,7 +291,7 @@ async function getOwnedConversation(conversationId, userId) {
 }
 
 /* =========================================================
-   ROUTE ACCUEIL
+   ACCUEIL
 ========================================================= */
 
 app.get("/", (req, res) => {
@@ -454,19 +505,9 @@ app.get("/api/auth/me", auth, async (req, res) => {
       });
     }
 
-    const { data: profile, error } = await supabase
-      .from("genius_users")
-      .select(
-        "id, full_name, country, phone, role, created_at"
-      )
-      .eq("id", user.id)
-      .single();
-
-    if (error) throw error;
-
     return res.json({
       success: true,
-      user: safeUser(profile)
+      user: safeUser(user)
     });
 
   } catch (error) {
@@ -475,6 +516,145 @@ app.get("/api/auth/me", auth, async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Impossible de récupérer le profil"
+    });
+  }
+});
+
+/* =========================================================
+   MODIFIER SON PROFIL
+========================================================= */
+
+app.put("/api/profile", auth, async (req, res) => {
+  try {
+    const user = await getActiveUser(req.user.id);
+
+    if (!user) {
+      return res.status(403).json({
+        success: false,
+        error: "Compte désactivé"
+      });
+    }
+
+    const full_name = cleanText(req.body.full_name, 100);
+    const country = cleanText(req.body.country, 80);
+
+    if (!full_name || !country) {
+      return res.status(400).json({
+        success: false,
+        error: "Nom et pays obligatoires"
+      });
+    }
+
+    const { data, error } = await supabase
+      .from("genius_users")
+      .update({
+        full_name,
+        country,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", user.id)
+      .select(
+        "id, full_name, country, phone, role, created_at"
+      )
+      .single();
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      message: "Profil modifié",
+      user: safeUser(data)
+    });
+
+  } catch (error) {
+    console.error("UPDATE PROFILE ERROR:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: "Impossible de modifier le profil"
+    });
+  }
+});
+
+/* =========================================================
+   CHANGER SON MOT DE PASSE
+========================================================= */
+
+app.put("/api/auth/password", auth, async (req, res) => {
+  try {
+    const user = await getActiveUser(req.user.id);
+
+    if (!user) {
+      return res.status(403).json({
+        success: false,
+        error: "Compte désactivé"
+      });
+    }
+
+    const currentPassword = req.body.current_password;
+    const newPassword = req.body.new_password;
+
+    if (
+      typeof currentPassword !== "string" ||
+      typeof newPassword !== "string"
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Informations manquantes"
+      });
+    }
+
+    if (newPassword.length < 8 || newPassword.length > 128) {
+      return res.status(400).json({
+        success: false,
+        error: "Le nouveau mot de passe doit contenir entre 8 et 128 caractères"
+      });
+    }
+
+    const { data: account, error: accountError } =
+      await supabase
+        .from("genius_users")
+        .select("password_hash")
+        .eq("id", user.id)
+        .single();
+
+    if (accountError) throw accountError;
+
+    const valid = await bcrypt.compare(
+      currentPassword,
+      account.password_hash
+    );
+
+    if (!valid) {
+      return res.status(401).json({
+        success: false,
+        error: "Mot de passe actuel incorrect"
+      });
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, 12);
+
+    const { error } = await supabase
+      .from("genius_users")
+      .update({
+        password_hash,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", user.id);
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      message: "Mot de passe modifié avec succès"
+    });
+
+  } catch (error) {
+    console.error("PASSWORD ERROR:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: "Impossible de changer le mot de passe"
     });
   }
 });
@@ -525,7 +705,7 @@ app.post("/api/conversations", auth, async (req, res) => {
 });
 
 /* =========================================================
-   RÉCUPÉRER LES CONVERSATIONS
+   RECHERCHER ET RÉCUPÉRER LES CONVERSATIONS
 ========================================================= */
 
 app.get("/api/conversations", auth, async (req, res) => {
@@ -539,7 +719,9 @@ app.get("/api/conversations", auth, async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase
+    const search = cleanText(req.query.q, 100);
+
+    let request = supabase
       .from("genius_conversations")
       .select("*")
       .eq("user_id", user.id)
@@ -547,6 +729,13 @@ app.get("/api/conversations", auth, async (req, res) => {
         ascending: false
       })
       .limit(100);
+
+    if (search) {
+      const safeSearch = search.replace(/[%_]/g, "");
+      request = request.ilike("title", `%${safeSearch}%`);
+    }
+
+    const { data, error } = await request;
 
     if (error) throw error;
 
@@ -566,7 +755,76 @@ app.get("/api/conversations", auth, async (req, res) => {
 });
 
 /* =========================================================
-   RÉCUPÉRER LES MESSAGES D'UNE CONVERSATION
+   RENOMMER UNE CONVERSATION
+========================================================= */
+
+app.put(
+  "/api/conversations/:id",
+  auth,
+  async (req, res) => {
+    try {
+      const user = await getActiveUser(req.user.id);
+
+      if (!user) {
+        return res.status(403).json({
+          success: false,
+          error: "Compte désactivé"
+        });
+      }
+
+      const title = cleanText(req.body.title, 100);
+
+      if (!title) {
+        return res.status(400).json({
+          success: false,
+          error: "Le titre est obligatoire"
+        });
+      }
+
+      const conversation = await getOwnedConversation(
+        req.params.id,
+        user.id
+      );
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: "Conversation introuvable"
+        });
+      }
+
+      const { data, error } = await supabase
+        .from("genius_conversations")
+        .update({
+          title,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", conversation.id)
+        .eq("user_id", user.id)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      return res.json({
+        success: true,
+        message: "Conversation renommée",
+        conversation: safeConversation(data)
+      });
+
+    } catch (error) {
+      console.error("RENAME CONVERSATION ERROR:", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible de renommer la conversation"
+      });
+    }
+  }
+);
+
+/* =========================================================
+   RÉCUPÉRER LES MESSAGES
 ========================================================= */
 
 app.get(
@@ -618,6 +876,66 @@ app.get(
       return res.status(500).json({
         success: false,
         error: "Impossible de récupérer les messages"
+      });
+    }
+  }
+);
+
+/* =========================================================
+   EXPORTER UNE CONVERSATION
+========================================================= */
+
+app.get(
+  "/api/conversations/:id/export",
+  auth,
+  async (req, res) => {
+    try {
+      const user = await getActiveUser(req.user.id);
+
+      if (!user) {
+        return res.status(403).json({
+          success: false,
+          error: "Compte désactivé"
+        });
+      }
+
+      const conversation = await getOwnedConversation(
+        req.params.id,
+        user.id
+      );
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: "Conversation introuvable"
+        });
+      }
+
+      const { data: messages, error } = await supabase
+        .from("genius_messages")
+        .select("role, content, created_at")
+        .eq("conversation_id", conversation.id)
+        .eq("user_id", user.id)
+        .order("created_at", {
+          ascending: true
+        });
+
+      if (error) throw error;
+
+      return res.json({
+        success: true,
+        application: "GENIUS IA",
+        conversation: safeConversation(conversation),
+        messages: messages || [],
+        exported_at: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error("EXPORT ERROR:", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible d'exporter la conversation"
       });
     }
   }
@@ -678,7 +996,44 @@ app.delete(
 );
 
 /* =========================================================
-   CHAT GENIUS IA — AVEC HISTORIQUE
+   SUPPRIMER TOUTES SES CONVERSATIONS
+========================================================= */
+
+app.delete("/api/conversations", auth, async (req, res) => {
+  try {
+    const user = await getActiveUser(req.user.id);
+
+    if (!user) {
+      return res.status(403).json({
+        success: false,
+        error: "Compte désactivé"
+      });
+    }
+
+    const { error } = await supabase
+      .from("genius_conversations")
+      .delete()
+      .eq("user_id", user.id);
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      message: "Toutes vos conversations ont été supprimées"
+    });
+
+  } catch (error) {
+    console.error("DELETE ALL ERROR:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: "Impossible de supprimer les conversations"
+    });
+  }
+});
+
+/* =========================================================
+   CHAT GENIUS IA
 ========================================================= */
 
 app.post("/api/chat", auth, async (req, res) => {
@@ -913,11 +1268,24 @@ Règles :
 
     if (saveError) throw saveError;
 
+    /* ==========================================
+       MISE À JOUR DU TITRE
+    ========================================== */
+
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (conversation.title === "Nouvelle conversation") {
+      updateData.title = cleanText(
+        lastUserMessage.content,
+        80
+      ) || "Nouvelle conversation";
+    }
+
     const { error: updateError } = await supabase
       .from("genius_conversations")
-      .update({
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq("id", conversation.id)
       .eq("user_id", user.id);
 
@@ -950,6 +1318,197 @@ Règles :
     });
   }
 });
+
+/* =========================================================
+   ADMIN — TABLEAU DE BORD
+========================================================= */
+
+app.get(
+  "/api/admin/dashboard",
+  auth,
+  adminOnly,
+  async (req, res) => {
+    try {
+      const [
+        usersResult,
+        conversationsResult,
+        messagesResult,
+        activeUsersResult
+      ] = await Promise.all([
+        supabase
+          .from("genius_users")
+          .select("id", { count: "exact", head: true }),
+
+        supabase
+          .from("genius_conversations")
+          .select("id", { count: "exact", head: true }),
+
+        supabase
+          .from("genius_messages")
+          .select("id", { count: "exact", head: true }),
+
+        supabase
+          .from("genius_users")
+          .select("id", { count: "exact", head: true })
+          .eq("is_active", true)
+      ]);
+
+      if (
+        usersResult.error ||
+        conversationsResult.error ||
+        messagesResult.error ||
+        activeUsersResult.error
+      ) {
+        throw new Error("Erreur de récupération des statistiques");
+      }
+
+      return res.json({
+        success: true,
+        version: VERSION,
+        statistics: {
+          total_users: usersResult.count || 0,
+          active_users: activeUsersResult.count || 0,
+          total_conversations: conversationsResult.count || 0,
+          total_messages: messagesResult.count || 0
+        }
+      });
+
+    } catch (error) {
+      console.error("ADMIN DASHBOARD ERROR:", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible de récupérer les statistiques"
+      });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN — LISTE DES UTILISATEURS
+========================================================= */
+
+app.get(
+  "/api/admin/users",
+  auth,
+  adminOnly,
+  async (req, res) => {
+    try {
+      const search = cleanText(req.query.q, 100);
+
+      let request = supabase
+        .from("genius_users")
+        .select(
+          "id, full_name, country, phone, role, is_active, created_at"
+        )
+        .order("created_at", {
+          ascending: false
+        })
+        .limit(100);
+
+      if (search) {
+        const safeSearch = search.replace(/[%_]/g, "");
+
+        request = request.or(
+          `full_name.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%`
+        );
+      }
+
+      const { data, error } = await request;
+
+      if (error) throw error;
+
+      return res.json({
+        success: true,
+        users: data || []
+      });
+
+    } catch (error) {
+      console.error("ADMIN USERS ERROR:", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible de récupérer les utilisateurs"
+      });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN — ACTIVER OU DÉSACTIVER UN COMPTE
+========================================================= */
+
+app.put(
+  "/api/admin/users/:id/status",
+  auth,
+  adminOnly,
+  async (req, res) => {
+    try {
+      const targetId = req.params.id;
+      const is_active = req.body.is_active;
+
+      if (typeof is_active !== "boolean") {
+        return res.status(400).json({
+          success: false,
+          error: "Statut invalide"
+        });
+      }
+
+      if (targetId === req.admin.id) {
+        return res.status(400).json({
+          success: false,
+          error: "Vous ne pouvez pas désactiver votre propre compte"
+        });
+      }
+
+      const { data: target, error: targetError } = await supabase
+        .from("genius_users")
+        .select("id, role")
+        .eq("id", targetId)
+        .maybeSingle();
+
+      if (targetError) throw targetError;
+
+      if (!target) {
+        return res.status(404).json({
+          success: false,
+          error: "Utilisateur introuvable"
+        });
+      }
+
+      if (target.role === "admin") {
+        return res.status(403).json({
+          success: false,
+          error: "Modification d'un compte administrateur interdite"
+        });
+      }
+
+      const { error } = await supabase
+        .from("genius_users")
+        .update({
+          is_active
+        })
+        .eq("id", targetId);
+
+      if (error) throw error;
+
+      return res.json({
+        success: true,
+        message: is_active
+          ? "Compte réactivé"
+          : "Compte désactivé"
+      });
+
+    } catch (error) {
+      console.error("ADMIN STATUS ERROR:", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible de modifier le compte"
+      });
+    }
+  }
+);
 
 /* =========================================================
    ROUTE INCONNUE
